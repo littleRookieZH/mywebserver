@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <mutex>
+#include <atomic>
 
 #include "Noncopyable.h"
 
@@ -148,51 +149,151 @@ namespace webs
     /* 互斥锁 */
     class Mutex : Noncopyable
     {
-        public:
-            /// 局部锁
-            typedef ScopedLockImpl<Mutex> Lock;
-            Mutex(){
-                pthread_mutex_init(&m_mutex, nullptr);
-            };
-            ~Mutex(){
-                pthread_mutex_destroy(&m_mutex);
-            };
-            /* 加锁 */
-            void lock(){
-                pthread_mutex_lock(&m_mutex);
-            };
-            /* 解锁 */
-            void unlock(){
-                pthread_mutex_unlock(&m_mutex);
-            };
+    public:
+        /// 局部锁
+        typedef ScopedLockImpl<Mutex> Lock;
+        Mutex()
+        {
+            pthread_mutex_init(&m_mutex, nullptr);
+        };
+        ~Mutex()
+        {
+            pthread_mutex_destroy(&m_mutex);
+        };
+        /* 加锁 */
+        void lock()
+        {
+            pthread_mutex_lock(&m_mutex);
+        };
+        /* 解锁 */
+        void unlock()
+        {
+            pthread_mutex_unlock(&m_mutex);
+        };
 
-        private:
-            pthread_mutex_t m_mutex;
+    private:
+        pthread_mutex_t m_mutex;
     };
 
     /* 空锁(用于调试) */
     class NullMutex : Noncopyable
     {
+        typedef ScopedLockImpl<NullMutex> Lock;
+        NullMutex(){};
+        ~NullMutex(){};
+        void lock(){};
+        void unlock(){};
     };
 
     /* 读写互斥量 */
     class RWMutex : Noncopyable
     {
+    public:
+        // 局部读锁
+        typedef ReadScopedLockImpl<RWMutex> ReadLock;
+        // 局部写锁
+        typedef WriteScopedLockImpl<RWMutex> WriteLock;
+
+        RWMutex()
+        {
+            pthread_rwlock_init(&m_lock, nullptr);
+        }
+        ~RWMutex()
+        {
+            pthread_rwlock_destroy(&m_lock);
+        }
+        /* 上读锁 */
+        void rdlock()
+        {
+            pthread_rwlock_rdlock(&m_lock);
+        }
+        /* 上写锁 */
+        void wrlock()
+        {
+            pthread_rwlock_wrlock(&m_lock);
+        }
+        /* 解锁 */
+        void unlock()
+        {
+            pthread_rwlock_unlock(&m_lock);
+        }
+
+    private:
+        pthread_rwlock_t m_lock;
     };
 
     /* 空读写锁(用于调试)*/
     class NullRWMutex : Noncopyable
     {
+        typedef ReadScopedLockImpl<NullRWMutex> ReadLock;
+        typedef WriteScopedLockImpl<NullRWMutex> WriteLock;
+        NullRWMutex(){};
+        ~NullRWMutex(){};
+        void lock(){};
+        void unlock(){};
     };
 
     /* 自旋锁 */
     class Spinlock : Noncopyable
     {
+    public:
+        // 局部锁
+        typedef ScopedLockImpl<Spinlock> Lock;
+        Spinlock()
+        {
+            /* 0，表示创建的自旋锁是进程内共享的;非0，表示进程间共享 */
+            pthread_spin_init(&m_lock, 0);
+        };
+        ~Spinlock()
+        {
+            pthread_spin_destroy(&m_lock);
+        };
+        /* 上锁 */
+        void lock()
+        {
+            pthread_spin_lock(&m_lock);
+        };
+        /* 解锁 */
+        void unlock()
+        {
+            pthread_spin_unlock(&m_lock);
+        };
+
+    private:
+        // 自旋锁
+        pthread_spinlock_t m_lock;
     };
 
     /* 原子锁 */
     class CASLock : Noncopyable
     {
+    public:
+        // 局部锁
+        typedef ScopedLockImpl<CASLock> Lock;
+        CASLock()
+        {
+            m_lock.clear();
+        }
+        ~CASLock()
+        {
+        }
+
+        /* 上锁 */
+        void lock()
+        {
+            while (std::atomic_flag_test_and_set_explicit(&m_lock, std::memory_order_acquire))
+                ;
+        }
+
+        /* 解锁 */
+        void unlock()
+        {
+            std::atomic_flag_clear_explicit(&m_lock, std::memory_order_release);
+        }
+
+    private:
+        // 原子状态；volatile关键字声明变量每次读写操作都先从内存中获取（非寄存器）
+        volatile std::atomic_flag m_lock;
     };
 
     /// 还有协程锁没有写
