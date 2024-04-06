@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <functional>
 #include <map>
+#include <tuple>
 
 namespace webs
 {
@@ -128,7 +129,7 @@ namespace webs
     class NameFormatItem : public LogFormatter::FormatItem
     {
     public:
-        NameFormatItem() {}
+        NameFormatItem(const std::string& str = "") {}
         void format(std::ostream &os, Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) override
         {
             /* 将日志名称输出到输出流中 */
@@ -150,7 +151,7 @@ namespace webs
     class FiberIdFormatItem : public LogFormatter::FormatItem
     {
     public:
-        FiberIdFormatItem() {}
+        FiberIdFormatItem(const std::string& str = "") {}
         void format(std::ostream &os, std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) override
         {
             /* 将线程id输出到输出流中 */
@@ -371,16 +372,48 @@ namespace webs
             vec.push_back(std::make_tuple(nstr, std::string(), 1));
         }
 
-        // 注意是静态局部变量，避免多次初始化
+        // 创建键值对： 格式-生成ptr对象的lamba表达式；注意是静态局部变量，避免多次初始化
         static std::map<std::string, std::function<FormatItem::ptr(const std::string &str)>> s_format_items = {
             // 注意这里是基类智能指针，管理派生类对象
 #define XX(str, C)                                                               \
     {                                                                            \
         #str, [](const std::string &fmt) { return FormatItem::ptr(new C(fmt)); } \
     }
-    XX(m, MessageFormatItem),
-    XX(),
-
+    XX(m, MessageFormatItem),       // m: 消息
+    XX(p, LevelFormatItem),         // p: 日志级别
+    XX(r, ElaspseFormatItem),       // r: 累计毫秒数
+    XX(c, NameFormatItem),          // c: 日志名称
+    XX(t, ThreadIdFormatItem),      // t: 线程id
+    XX(n, NewLineFormatItem),       // n: 换行
+    XX(d, DateTimeFormatItem),      // d: 时间
+    XX(f, FilenameFormatItem),      // f: 文件名
+    XX(l, LineFormatItem),          // l: 行号
+    XX(T, TabFormatItem),           // T: Tab
+    XX(F, FiberIdFormatItem),       // F: 协程id
+    XX(N, ThreadNameFormatItem),    // N: 线程名称
+    #undef XX
         };
+
+        for (auto &i : vec)
+        {
+            if (std::get<2>(i) == 0)
+            {
+                // std::get<0>(i)是纯字符串
+                m_items.push_back(FormatItem::ptr(new StringFormatItem(std::get<0>(i))));
+            }
+            else
+            {
+                auto it = s_format_items.find(std::get<0>(i));
+                if (it == s_format_items.end())
+                {
+                    m_items.push_back(FormatItem::ptr(new StringFormatItem("<<error_format %" + std::get<0>(i) + ">>")));
+                    m_error = true;
+                }
+                else
+                {
+                    m_items.push_back(it->second(std::get<1>(i)));
+                }
+            }
+        }
     }
 }
