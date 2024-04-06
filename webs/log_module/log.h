@@ -7,9 +7,10 @@
 #include <algorithm>
 #include <sstream>
 #include <vector>
-#include <ostream>
+#include <iostream>
 #include <fstream>
 #include <map>
+#include "../util/singleton.h"
 
 namespace webs
 {
@@ -139,7 +140,7 @@ namespace webs
          * 默认格式："%d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"  
          */
         LogFormatter(const std::string& pattern);
-        /* 返回格式化日志文本   目前只使用event，个人觉得传入三个参数是为了以后功能的拓展，比如想输出logger的内容 */
+        /* 返回格式化日志文本   目前只使用event，其它参数的意义是什么呢 */
         std::string format(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event);
         std::ostream &format(std::ostream &os, std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event);
 
@@ -163,7 +164,7 @@ namespace webs
         // 日志格式模板
         std::string m_pattern;
         // 日志格式解析后的格式
-        std::vector<FormatItem> m_items;
+        std::vector<FormatItem::ptr> m_items;
         // 是否有错误
         bool m_error = false;
     };
@@ -304,7 +305,9 @@ namespace webs
     };
 
     /// 日志器管理类单例模式
-    
+    typedef webs::Singleton<LoggerManager> LoggerMgr;
+
+    /// 还没有加锁
 }
 
 #endif
