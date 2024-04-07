@@ -45,6 +45,7 @@ namespace webs
         {
             if (!m_locked)
             {
+                // 调用T类型对象的lock
                 m_mutex.lock();
                 m_locked = true;
             }

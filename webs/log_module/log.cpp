@@ -129,7 +129,7 @@ namespace webs
     class NameFormatItem : public LogFormatter::FormatItem
     {
     public:
-        NameFormatItem(const std::string& str = "") {}
+        NameFormatItem(const std::string &str = "") {}
         void format(std::ostream &os, Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) override
         {
             /* 将日志名称输出到输出流中 */
@@ -151,7 +151,7 @@ namespace webs
     class FiberIdFormatItem : public LogFormatter::FormatItem
     {
     public:
-        FiberIdFormatItem(const std::string& str = "") {}
+        FiberIdFormatItem(const std::string &str = "") {}
         void format(std::ostream &os, std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) override
         {
             /* 将线程id输出到输出流中 */
@@ -374,24 +374,24 @@ namespace webs
 
         // 创建键值对： 格式-生成ptr对象的lamba表达式；注意是静态局部变量，避免多次初始化
         static std::map<std::string, std::function<FormatItem::ptr(const std::string &str)>> s_format_items = {
-            // 注意这里是基类智能指针，管理派生类对象
+        // 注意这里是基类智能指针，管理派生类对象
 #define XX(str, C)                                                               \
     {                                                                            \
         #str, [](const std::string &fmt) { return FormatItem::ptr(new C(fmt)); } \
     }
-    XX(m, MessageFormatItem),       // m: 消息
-    XX(p, LevelFormatItem),         // p: 日志级别
-    XX(r, ElaspseFormatItem),       // r: 累计毫秒数
-    XX(c, NameFormatItem),          // c: 日志名称
-    XX(t, ThreadIdFormatItem),      // t: 线程id
-    XX(n, NewLineFormatItem),       // n: 换行
-    XX(d, DateTimeFormatItem),      // d: 时间
-    XX(f, FilenameFormatItem),      // f: 文件名
-    XX(l, LineFormatItem),          // l: 行号
-    XX(T, TabFormatItem),           // T: Tab
-    XX(F, FiberIdFormatItem),       // F: 协程id
-    XX(N, ThreadNameFormatItem),    // N: 线程名称
-    #undef XX
+            XX(m, MessageFormatItem),    // m: 消息
+            XX(p, LevelFormatItem),      // p: 日志级别
+            XX(r, ElaspseFormatItem),    // r: 累计毫秒数
+            XX(c, NameFormatItem),       // c: 日志名称
+            XX(t, ThreadIdFormatItem),   // t: 线程id
+            XX(n, NewLineFormatItem),    // n: 换行
+            XX(d, DateTimeFormatItem),   // d: 时间
+            XX(f, FilenameFormatItem),   // f: 文件名
+            XX(l, LineFormatItem),       // l: 行号
+            XX(T, TabFormatItem),        // T: Tab
+            XX(F, FiberIdFormatItem),    // F: 协程id
+            XX(N, ThreadNameFormatItem), // N: 线程名称
+#undef XX
         };
 
         for (auto &i : vec)
@@ -416,4 +416,94 @@ namespace webs
             }
         }
     }
-}
+
+    /* 获取日志格式器 */
+    LogFormatter::ptr LogAppender::getFormatter()
+    {
+        // 这里使用了 MutexType的拷贝构造 和 对应锁的移动构造。同时使用局部对象管理锁资源，确保可以自动释放锁
+        MutexType::Lock lock(m_mutex);
+        return m_formatter;
+    }
+
+    /* 更改日志格式器 */
+    void LogAppender::setFormatter(LogFormatter::ptr val)
+    {
+        MutexType::Lock lock(m_mutex);
+        m_formatter = val;
+        // 可能是为了防止传入一个空对象
+        if (m_formatter)
+        {
+            m_hasFormatter = true;
+        }
+        else
+        {
+            m_hasFormatter = false;
+        }
+    }
+
+    Logger::Logger(const std::string &name) : m_name(name)
+    {
+        m_formatter.reset(new LogFormatter("%d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"));
+    }
+
+    bool FileLogAppender::reopen()
+    {
+    }
+    /* 有两种不同级别的日志，文件、终端输出 */
+    void FileLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event)
+    {
+
+    }
+
+    /* 写日志 */
+    void Logger::log(LogLevel::Level level, LogEvent::ptr event)
+    {
+    }
+    /* 写debug级别日志 */
+    void Logger::debug(LogEvent::ptr event)
+    {
+    }
+    /* 写info级别的日志 */
+    void Logger::info(LogEvent::ptr event)
+    {
+    }
+    /* 写warn级别的日志 */
+    void Logger::warn(LogEvent::ptr event)
+    {
+    }
+    /* 写error级别的日志 */
+    void Logger::error(LogEvent::ptr event)
+    {
+    }
+    /* 写fatal级别日志 */
+    void Logger::fatal(LogEvent::ptr event)
+    {
+    }
+    /* 添加日志目标 */
+    void Logger::addAppender(LogAppender::ptr appender)
+    {
+    }
+    /* 删除日志目标 */
+    void Logger::delAppender(LogAppender::ptr appender)
+    {
+    }
+    /* 清空日志目标 */
+    void Logger::clearAppenders()
+    {
+    }
+    /* 设置日志格式器 */
+    void Logger::setFormatter(const std::string &val)
+    {
+    }
+    /* 设置日志格式器 */
+    void Logger::setFormatter(LogFormatter::ptr val)
+    {
+    }
+    /* 获取日志格式器 */
+    LogFormatter::ptr Logger::getFormatter()
+    {
+    }
+    /* 将日志器的配置转成YAML String */
+    std::string Logger::toYamlString()
+    {
+    }
