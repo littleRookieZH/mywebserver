@@ -4,6 +4,8 @@
 #include <functional>
 #include <map>
 #include <tuple>
+#include "../util/util.h"
+#include <yaml-cpp/yaml.h>
 
 namespace webs
 {
@@ -308,6 +310,7 @@ namespace webs
             std::string str;
             std::string fmt;
 
+            // 匹配到 %
             while (n < m_pattern.size())
             {
                 // fmt_status = 0, m_pattern[n]不是字母且不是'{'、'}'
@@ -446,64 +449,201 @@ namespace webs
         m_formatter.reset(new LogFormatter("%d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"));
     }
 
+    /* 重新打开文件 */
     bool FileLogAppender::reopen()
     {
+        MutexType::Lock lock(m_mutex);
+        // 需要先关闭文件流，确保重新打开时，不会因其他进程使用而无法访问
+        if (m_filestream)
+        {
+            m_filestream.close();
+        }
+        return FSUtil::OpenForWrite(m_filestream, m_filename, std::ios::app);
     }
+
     /* 有两种不同级别的日志，文件、终端输出 */
     void FileLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event)
     {
+        // 打开文件流，绑定文件
+        if (level >= m_level)
+        {
+            uint64_t now_time = event->getTime();
+            if (now_time > m_lasttime + 3)
+            {
+                reopen();
+                m_lasttime = now_time;
+            }
+            // m_pattern的format函数
+            MutexType::Lock lock(m_mutex);
+            if (!m_formatter->format(m_filestream, logger, level, event))
+            {
+                std::cout << "error" << std::endl;
+            }
+        }
+    }
 
+    /* 终端输出 */
+    void StdoutLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event)
+    {
+        if (level >= m_level)
+        {
+            MutexType::Lock lock(m_mutex);
+            m_formatter->format(std::cout, logger, level, event);
+        }
     }
 
     /* 写日志 */
     void Logger::log(LogLevel::Level level, LogEvent::ptr event)
     {
+        // 优先输出list中每一个元素的log，如果为空，输出主日志器
+        if (level >= m_level)
+        {
+            Logger::ptr self = shared_from_this(); // 返回一个当前类的std::share_ptr
+            if (!m_appenders.empty())
+            {
+                for (auto i : m_appenders)
+                {
+                    i->log(self, level, event);
+                }
+            }
+            else if (m_root)
+            {
+                // 主日志器默认输出到终端
+                m_root->log(level, event);
+            }
+        }
     }
+
     /* 写debug级别日志 */
     void Logger::debug(LogEvent::ptr event)
     {
+        log(LogLevel::DEBUG, event);
     }
+
     /* 写info级别的日志 */
     void Logger::info(LogEvent::ptr event)
     {
+        log(LogLevel::INFO, event);
     }
+
     /* 写warn级别的日志 */
     void Logger::warn(LogEvent::ptr event)
     {
+        log(LogLevel::WARN, event);
     }
+
     /* 写error级别的日志 */
     void Logger::error(LogEvent::ptr event)
     {
+        log(LogLevel::ERROR, event);
     }
+
     /* 写fatal级别日志 */
     void Logger::fatal(LogEvent::ptr event)
     {
+        log(LogLevel::FATAL, event);
     }
+
     /* 添加日志目标 */
     void Logger::addAppender(LogAppender::ptr appender)
     {
+        MutexType::Lock lock(m_mutex);
+        // 如果没有设置格式器
+        if (!appender->getFormatter())
+        {
+            /* 添加日志器的时候并没有设置m_hasformat为true（由自己的set函数设置） */
+            // appender->setFormatter(m_formatter);
+            MutexType::Lock lock(appender->m_mutex);
+            appender->m_formatter = m_formatter;
+        }
+        m_appenders.push_back(appender);
     }
+
     /* 删除日志目标 */
     void Logger::delAppender(LogAppender::ptr appender)
     {
+        MutexType::Lock lock(m_mutex);
+        m_appenders.remove(appender);
     }
+
     /* 清空日志目标 */
     void Logger::clearAppenders()
     {
+        MutexType::Lock lock(m_mutex);
+        m_appenders.clear();
     }
+
+    /* 设置logger的日志器，如果m_appenders没有设置自己的专属日志器格式，则进行同步更新格式 */
+    void Logger::setFormatter(LogFormatter::ptr val)
+    {
+        MutexType::Lock lock(m_mutex);
+        m_formatter = val;
+        for (auto &i : m_appenders)
+        {
+            MutexType::Lock ll(i->m_mutex);
+            if (!i->m_hasFormatter)
+            {
+                i->m_formatter = m_formatter;
+            }
+        }
+    }
+
     /* 设置日志格式器 */
     void Logger::setFormatter(const std::string &val)
     {
+        std::cout << "-------" << std::endl;
+        MutexType::Lock lock(m_mutex);
+        LogFormatter::ptr new_val(new LogFormatter(val));
+        if (new_val->isError())
+        {
+            std::cout << "Logger setFormatter name = " << m_name
+                      << " value = " << val << " invalid formatter" << std::endl;
+            return;
+        }
+        setFormatter(new_val);
+        // m_formatter.reset(LogFormatter::ptr());
     }
-    /* 设置日志格式器 */
-    void Logger::setFormatter(LogFormatter::ptr val)
-    {
-    }
+
     /* 获取日志格式器 */
     LogFormatter::ptr Logger::getFormatter()
     {
+        MutexType::Lock lock(m_mutex);
+        return m_formatter;
     }
+
+    std::string StdoutLogAppender::toYamlString()
+    {
+        
+    }
+    
+    std::string FileLogAppender::toYamlString()
+    {
+
+    }
+
     /* 将日志器的配置转成YAML String */
     std::string Logger::toYamlString()
     {
+        MutexType::Lock loc(m_mutex);
+        YAML::Node node;
+        node["name"] = m_name;
+        if (m_level != LogLevel::UNKNOW)
+        {
+            node["level"] = m_level;
+        }
+        if (m_formatter)
+        {
+            node["formatter"] = m_formatter;
+        }
+        if (!m_appenders.empty())
+        {
+            for (auto i : m_appenders)
+            {
+                node["appenders"].push_back(YAML::Load(i->toYamlString()));
+            }
+        }
+        std::stringstream ss;
+        ss << node;
+        return ss.str();
     }
+}

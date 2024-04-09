@@ -170,10 +170,10 @@ namespace webs
         bool m_error = false;
     };
 
-    /* 日志输出目标 */
+    /* 日志输出目标: 抽象基类 */
     class LogAppender
     {
-        friend class Logger;
+        friend class Logger;// 方便在logger类中设置LogAppender的属性
 
     public:
         typedef std::shared_ptr<LogAppender> ptr;
@@ -257,8 +257,8 @@ namespace webs
         /// 日志级别
         LogLevel::Level m_level = LogLevel::DEBUG;
         /// 日志目标集合
-        std::list<LogAppender::ptr> m_appenders;
-        /// 日志格式器
+        std::list<LogAppender::ptr> m_appenders;// 共享资源；加入或者输出的时候需要加锁
+        /// 日志格式器 这里的 格式器 与 list中的元素格式器 是相同的
         LogFormatter::ptr m_formatter;
         /// 主日志器
         Logger::ptr m_root;
