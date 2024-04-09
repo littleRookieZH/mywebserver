@@ -12,6 +12,63 @@
 #include <map>
 #include "../util/singleton.h"
 #include "../util/mutex.h"
+#include "../config/config.h"
+#include "../thread_module/thread.h"
+
+/**
+ * @brief 使用流式方式将日志级别level的日志写入到logger
+ * 宏定义以最后一条语句作为返回值， 使用()、{}是为了防止逻辑出错。单条语句不需要使用
+ */
+#define WEBS_LOG_LEVEL(logger, level)                                                                                             \
+    if (logger->getLevel() <= level)                                                                                              \                                                                                                                         \
+        webs::LogEventWrap(webs::LogEvent::ptr(new webs::LogEvent(__FILE__, __LINE__, 0, webs::GetThreadId(), webs::GetFiberId(), \
+                                                                  time(0), webs::Thread::GetName(), logger, level)))              \
+            .getSS()                                                                                                              
+   
+
+/* 以流的方式将 DEBUG 级别的日志写入到logger */
+#define WEBS_LOG_DEBUG(logger) WEBS_LOG_LEVEL(logger, webs::LogLevel::DEBUG)
+
+/* 以流的方式将 INFO 级别的日志写入到logger */
+#define WEBS_LOG_INFO(logger) WEBS_LOG_LEVEL(logger, webs::LogLevel::INFO)
+
+/* 以流的方式将 WARN 级别的日志写入到logger */
+#define WEBS_LOG_WARN(logger) WEBS_LOG_LEVEL(logger, webs::LogLevel::WARN)
+
+/* 以流的方式将 ERROR 级别的日志写入到logger */
+#define WEBS_LOG_ERROR(logger) WEBS_LOG_LEVEL(logger, webs::LogLevel::ERROR)
+
+/* 以流的方式将 FATAL 级别的日志写入到logger */
+#define WEBS_LOG_FATAL(logger) WEBS_LOG_LEVEL(logger, webs::LogLevel::FATAL)
+
+/* 使用格式化方式(内部实现是将内容以流的方式写入)将日志级别level的日志写入到logger */
+#define WEBS_LOG_FMT_LEVEL(logger, level, fmt, ...)                                                                                  \
+    if (logger->getLevel() <= level)                                                                                                 \
+    webs::LogEventWrap(webs::LogEvent::ptr(new webs::LogEvent(__FILE__, __LINE__, 0, webs::GetThreadId(),                            \
+                                                              webs::GetFiberId(), time(0), webs::Thread::GetName(), logger, level))) \
+        .getEvent()                                                                                                                  \
+        ->format(fmt, __VA_ARGS__)
+
+/* 以格式化的方式将 DEBUG 级别的日志写入到logger */
+#define WEBS_LOG_FMT_DEBUG(logger, fmt, ...) WEBS_LOG_FMT_LEVEL(logger, webs::LogLevel::DEBUG, fmt, __VA_ARGS__)
+
+/* 以格式化的方式将 INFO 级别的日志写入到logger */
+#define WEBS_LOG_FMT_INFO(logger, fmt, ...) WEBS_LOG_FMT_LEVEL(logger, webs::LogLevel::INFO, fmt, __VA_ARGS__)
+
+/* 以格式化的方式将 WARN 级别的日志写入到logger */
+#define WEBS_LOG_FMT_WARN(logger, fmt, ...) WEBS_LOG_FMT_LEVEL(logger, webs::LogLevel::WARN, fmt, __VA_ARGS__)
+
+/* 以格式化的方式将 ERROR 级别的日志写入到logger */
+#define WEBS_LOG_FMT_ERROR(logger, fmt, ...) WEBS_LOG_FMT_LEVEL(logger, webs::LogLevel::ERROR, fmt, __VA_ARGS__)
+
+/* 以格式化的方式将 FATAL 级别的日志写入到logger */
+#define WEBS_LOG_FMT_FATAL(logger, fmt, ...) WEBS_LOG_FMT_LEVEL(logger, webs::LogLevel::FATAL, fmt, __VA_ARGS__)
+
+/* 获取主日志器 */
+#define WEBS_LOG_ROOT() webs::LoggerMgr::GetInstance().getRoot()
+
+/* 获取 name 的日志器 */
+#define WEBS_LOG_NAME(name) webs::LoggerMgr::GetInstance().getLogger(name)
 
 namespace webs
 {
@@ -149,6 +206,7 @@ namespace webs
         void init();
         /* 是否有错误 */
         bool isError() const { return m_error; };
+        const std::string &getPattern() const { return m_pattern; };
 
     public:
         /* 日志内容项格式化 为什么使用内部类，好处(推测是封装性)，设计思路是什么；这是一个抽象基类*/
@@ -173,7 +231,7 @@ namespace webs
     /* 日志输出目标: 抽象基类 */
     class LogAppender
     {
-        friend class Logger;// 方便在logger类中设置LogAppender的属性
+        friend class Logger; // 方便在logger类中设置LogAppender的属性
 
     public:
         typedef std::shared_ptr<LogAppender> ptr;
@@ -257,11 +315,11 @@ namespace webs
         /// 日志级别
         LogLevel::Level m_level = LogLevel::DEBUG;
         /// 日志目标集合
-        std::list<LogAppender::ptr> m_appenders;// 共享资源；加入或者输出的时候需要加锁
+        std::list<LogAppender::ptr> m_appenders; // 共享资源；加入或者输出的时候需要加锁
         /// 日志格式器 这里的 格式器 与 list中的元素格式器 是相同的
         LogFormatter::ptr m_formatter;
         /// 主日志器
-        Logger::ptr m_root;
+        Logger::ptr m_root; // 初始化时需要将终端输出加入到appender中
     };
 
     /* 输出到控制台 */

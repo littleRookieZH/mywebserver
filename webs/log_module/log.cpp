@@ -92,7 +92,7 @@ namespace webs
     /* 获取日志内容流 */
     std::stringstream &LogEventWrap::getSS()
     {
-        m_event->getSS();
+        return m_event->getSS();
     }
 
     class MessageFormatItem : public LogFormatter::FormatItem
@@ -611,14 +611,44 @@ namespace webs
         return m_formatter;
     }
 
+    /* 将 StdoutLogAppender 的配置转成YAML String */
     std::string StdoutLogAppender::toYamlString()
     {
-        
+        MutexType::Lock lock(m_mutex);
+        YAML::Node node;
+        node["type"] = "StdoutLogAppender";
+        if (m_level != LogLevel::UNKNOW)
+        {
+            node["level"] = LogLevel::ToString(m_level);
+        }
+        if (m_formatter)
+        {
+            node["formatter"] = m_formatter->getPattern();
+        }
+        std::stringstream ss;
+        ss << node;
+        return ss.str();
     }
-    
+
+    /* 将 FileLogAppender 的配置转成YAML String */
     std::string FileLogAppender::toYamlString()
     {
-
+        MutexType::Lock lock(m_mutex);
+        YAML::Node node;
+        node["type"] = "FileLogAppender";
+        node["filename"] = m_filename;
+        if (m_level != LogLevel::UNKNOW)
+        {
+            node["level"] = LogLevel::ToString(m_level);
+        }
+        // 输出自己的专属模板，没有就不输出
+        if (m_hasFormatter && m_formatter)
+        {
+            node["formatter"] = m_formatter->getPattern();
+        }
+        std::stringstream ss;
+        ss << node;
+        return ss.str();
     }
 
     /* 将日志器的配置转成YAML String */
@@ -629,21 +659,232 @@ namespace webs
         node["name"] = m_name;
         if (m_level != LogLevel::UNKNOW)
         {
-            node["level"] = m_level;
+            node["level"] = LogLevel::ToString(m_level);
         }
         if (m_formatter)
         {
-            node["formatter"] = m_formatter;
+            node["formatter"] = m_formatter->getPattern();
         }
-        if (!m_appenders.empty())
+        for (auto &i : m_appenders)
         {
-            for (auto i : m_appenders)
-            {
-                node["appenders"].push_back(YAML::Load(i->toYamlString()));
-            }
+            node["appenders"].push_back(YAML::Load(i->toYamlString()));
         }
         std::stringstream ss;
         ss << node;
         return ss.str();
     }
+
+    FileLogAppender::FileLogAppender(const std::string &filename) : m_filename(filename)
+    {
+        // 在初始化的时候就打开文件流可以避免在后续输出日志的时候，不断重复调用系统调用函数
+        reopen();
+    }
+
+    LoggerManager::LoggerManager() : m_root(Logger::ptr(new Logger()))
+    {
+        m_root->addAppender(LogAppender::ptr(new StdoutLogAppender()));
+        m_loggers[m_root->m_name] = m_root;
+    }
+
+    /* 获取日志器 */
+    Logger::ptr LoggerManager::getLogger(const std::string &name)
+    {
+        MutexType::Lock lock(m_mutex);
+        auto it = m_loggers.find(name);
+        if (it != m_loggers.end())
+        {
+            return it->second;
+        }
+        // 如果不存咋则添加
+        Logger::ptr logger(new Logger());
+        logger->m_root = m_root; // 不要忘记赋值主日志器
+        m_loggers[name] = logger;
+        return logger;
+    }
+
+    /* 初始化 */
+    void LoggerManager::init()
+    {
+    }
+
+    /* 将所有的日志器配置成YAML */
+    std::string LoggerManager::LoggerManager::toYamlString()
+    {
+        MutexType::Lock lock(m_mutex);
+        YAML::Node node;
+        for (auto &i : m_loggers)
+        {
+            node.push_back(YAML::Load(i.second->toYamlString()));
+        }
+        std::stringstream ss;
+        ss << node;
+        return ss.str();
+    }
+
+    /* 可能是配置文件用的 */
+    struct LogAppenderDefine
+    {
+        int type = 0; // 1 File, 2 Stdout
+        LogLevel::Level level = LogLevel::UNKNOW;
+        std::string formatter;
+        std::string file;
+
+        bool operator==(const LogAppenderDefine &rhs) const
+        {
+            return type == rhs.type && level == rhs.level && formatter == rhs.formatter && file == rhs.file;
+        }
+    };
+
+    struct LogDefine
+    {
+        std::string name;
+        LogLevel::Level level = LogLevel::UNKNOW;
+        std::string formatter;
+        std::vector<LogAppenderDefine> appenders;
+
+        bool operator==(LogDefine &rhs) const
+        {
+            return name == rhs.name && level == rhs.level && formatter == rhs.formatter && appenders == rhs.appenders;
+        }
+
+        // 可能是为了map
+        bool operator<(LogDefine &rhs) const
+        {
+            return name < rhs.name;
+        }
+
+        bool isValid() const
+        {
+            return !name.empty();
+        }
+    };
+
+    template <>
+    class LexicalCast<std::string, LogDefine>
+    {
+    public:
+        /* 将 string 中的数据通过YAML转换后，格式化为 LogDefine类型中的数据 */
+        LogDefine operator()(const std::string &v)
+        {
+            YAML::Node node = YAML::Load(v);
+            if (!node["name"].IsDefined())
+            {
+                // 输出错误
+                std::cout << "log config error: name is null, " << node << std::endl;
+                throw std::logic_error("log config name is null");
+            }
+            LogDefine ld;
+            ld.name = node["name"].as<std::string>();
+            // 如果有级别，使用 fromstring 将级别转为 int
+            ld.level = LogLevel::FromString(node["level"].IsDefined() ? node["level"].as<std::string>() : "");
+            if (node["formatter"].IsDefined())
+            {
+                ld.formatter = node["formatter"].as<std::string>();
+            }
+            if (node["appenders"].IsDefined())
+            {
+                node["appenders"];
+                for (size_t i = 0; i < node["appenders"].size(); ++i)
+                {
+                    auto tmp_appender = node["appenders"][i];
+                    LogAppenderDefine lad;
+                    if (tmp_appender["type"].IsDefined())
+                    {
+                        std::string type = tmp_appender["type"].as<std::string>();
+
+                        if (type == "FileLogAppender") // 如果是文件
+                        {
+                            lad.type = 1;
+                            if (!tmp_appender["file"].IsDefined())
+                            {
+                                // 可以直接向std::cout中输出node信息(已经格式为字符串)
+                                std::cout << "log config error : fileappender file is null, " << tmp_appender << std::endl;
+                                continue;
+                            }
+                            lad.file = tmp_appender["file"].as<std::string>();
+                            if (tmp_appender["formatter"].IsDefined())
+                            {
+                                lad.formatter = tmp_appender["formatter"].as<std::string>();
+                            }
+                            lad.level = LogLevel::FromString(tmp_appender["level"].IsDefined() ? tmp_appender["level"].as<std::string>() : "");
+                        }
+                        else if (type == "StdoutLogAppender") // 如果是终端
+                        {
+                            lad.type = 2;
+                            if (tmp_appender["formatter"].IsDefined())
+                            {
+                                lad.formatter = tmp_appender["formatter"].as<std::string>();
+                            }
+                            lad.level = LogLevel::FromString(tmp_appender["level"].IsDefined() ? tmp_appender["level"].as<std::string>() : "");
+                        }
+                        else
+                        {
+                            // 输出错误
+                            std::cout << "log config error : apender type id invalid, " << tmp_appender << std::endl;
+                            continue;
+                        }
+                    }
+                    ld.appenders.push_back(lad);
+                }
+            }
+            return ld;
+        }
+    };
+
+    template <>
+    class LexicalCast<LogDefine, std::string>
+    {
+        /* 将 LogDefine 中的数据通过YAML转换后，格式化为 string 类型中的数据 */
+        std::string operator()(const LogDefine &ld)
+        {
+            YAML::Node node;
+            if (ld.name.empty())
+            {
+                std::cout << "log config error: name is null" << std::endl;
+                throw std::logic_error("log config name is null");
+            }
+            node["name"] = ld.name;
+            if (ld.level != LogLevel::UNKNOW)
+            {
+                node["level"] = LogLevel::ToString(ld.level);
+            }
+            if (!ld.formatter.empty())
+            {
+                node["formatter"] = ld.formatter;
+            }
+            for (auto &i : ld.appenders)
+            {
+                YAML::Node append_node;
+                if (i.type == 1)
+                {
+                    append_node["type"] = "FileLogAppender";
+                    if (!i.file.empty())
+                    {
+                        append_node["file"] = i.file;
+                    }
+                }
+                else if (i.type == 2)
+                {
+                    append_node["type"] = "StdoutLogAppender";
+                }
+
+                if (i.level != LogLevel::UNKNOW)
+                {
+                    append_node["level"] = LogLevel::ToString(i.level);
+                }
+                if (!i.formatter.empty())
+                {
+                    append_node["formatter"] = i.formatter;
+                }
+
+                node["appenders"].push_back(append_node);
+            }
+
+            std::stringstream ss;
+            ss << node;
+            return ss.str();
+        }
+    };
+
+    // 配置信息没有写
 }

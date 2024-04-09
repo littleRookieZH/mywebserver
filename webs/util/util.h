@@ -8,6 +8,16 @@
 /* 常用的工具类 */
 namespace webs
 {
+    /* 获取当前线程的ID */
+    pid_t GetThreadId();
+
+    /* 返回当前协程的ID */
+    uint32_t GetFiberId();
+
+    /* 获取当前微秒数 */
+    uint64_t GetCurrentUS();
+
+
     class FSUtil
     {
     public:
