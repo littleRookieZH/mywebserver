@@ -1,19 +1,17 @@
-#ifndef _WEBS_NONCOPYABLE_H_
-#define _WEBS_NONCOPYABLE_H_
+#ifndef __WEBS_NONCOPYABLE_H__
+#define __WEBS_NONCOPYABLE_H__
 
-namespace webs
-{
-    /* 不可拷贝对象封装 */
-    class Noncopyable
-    {
-    public:
-        Noncopyable(){};
-        ~Noncopyable(){};
+namespace webs {
+/* 不可拷贝对象封装 */
+class Noncopyable {
+public:
+    Noncopyable(){};
+    ~Noncopyable(){};
 
-    private:
-        Noncopyable(const Noncopyable &);
-        Noncopyable &operator=(const Noncopyable &);
-    };
+private:
+    Noncopyable(const Noncopyable &);
+    Noncopyable &operator=(const Noncopyable &);
 };
+}; // namespace webs
 
 #endif

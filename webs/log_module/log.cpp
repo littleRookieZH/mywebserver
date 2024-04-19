@@ -5,6 +5,7 @@
 #include <map>
 #include <tuple>
 #include "../util/util.h"
+#include "../config/config.h"
 #include <yaml-cpp/yaml.h>
 
 namespace webs
@@ -55,7 +56,7 @@ namespace webs
 
     /* LogEvent的构造函数 */
     LogEvent::LogEvent(const char *file, int32_t line, uint32_t elapse, uint32_t thread_id, uint32_t fiber_id, uint64_t time,
-                       std::string &thread_name, std::shared_ptr<Logger> logger, LogLevel::Level level)
+                       const std::string &thread_name, std::shared_ptr<Logger> logger, LogLevel::Level level)
         : m_file(file), m_line(line), m_elapse(elapse), m_threadId(thread_id), m_fiberId(fiber_id), m_time(time), m_threadName(thread_name), m_logger(logger), m_level(level)
     {
     }
@@ -559,11 +560,17 @@ namespace webs
         m_appenders.push_back(appender);
     }
 
-    /* 删除日志目标 */
+    /* 删除日志目标；仅删除第一个相等的 */
     void Logger::delAppender(LogAppender::ptr appender)
     {
         MutexType::Lock lock(m_mutex);
-        m_appenders.remove(appender);
+        for (auto it = m_appenders.begin(); it != m_appenders.end(); ++it){
+            if (*it == appender)// 可以直接比较两个智能指针
+            {
+                m_appenders.erase(it);
+                break;
+            }
+        }
     }
 
     /* 清空日志目标 */
