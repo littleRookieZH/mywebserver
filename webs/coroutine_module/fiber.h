@@ -26,7 +26,7 @@ public:
         /// @brief 可执行状态
         READY,
         /// @brief 异常状态
-        EXECEPT
+        EXCEPT
     };
 
 private:

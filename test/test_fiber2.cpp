@@ -21,15 +21,15 @@ int main(void) {
     context1.uc_link = NULL;
     makecontext(&context1, foo, 0);
 
-    getcontext(&context2);
-    context2.uc_stack.ss_sp = stack2;
-    context2.uc_stack.ss_size = sizeof(stack2);
-    context2.uc_link = &context1;
-    makecontext(&context2, bar, 0);
-
+    // getcontext(&context2);
+    // context2.uc_stack.ss_sp = stack2;
+    // context2.uc_stack.ss_size = sizeof(stack2);
+    // context2.uc_link = &context1;
+    // makecontext(&context2, bar, 0);
+    // setcontext(&context2);
     printf("Hello world\n");
     sleep(1);
-    setcontext(&context2);
+    // setcontext(&context2);
 
     return 0;
 }

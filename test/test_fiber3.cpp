@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <ucontext.h>
-
+#include <iostream>
 static ucontext_t ctx[3];
 
 static void
@@ -11,11 +11,18 @@ f1(void) {
     printf("finish f1\n");
 }
 
+void swap() {
+    if (swapcontext(&ctx[2], &ctx[1])) {
+        std::cout << "error" << std::endl;
+    }
+    std::cout << "swapcontext success" << std::endl;
+}
+
 static void
 f2(void) {
     printf("start f2\n");
     // 将当前 context 保存到 ctx[2]，切换到 ctx[1]
-    swapcontext(&ctx[2], &ctx[1]);
+    swap();
     printf("finish f2\n");
 }
 
@@ -32,7 +39,7 @@ int main(void) {
     getcontext(&ctx[2]);
     ctx[2].uc_stack.ss_sp = stack2;
     ctx[2].uc_stack.ss_size = sizeof(stack2);
-    ctx[2].uc_link = &ctx[1];
+    ctx[2].uc_link = nullptr;
     makecontext(&ctx[2], f2, 0);
 
     // 将当前 context 保存到 ctx[0]，切换到 ctx[2]

@@ -31,7 +31,7 @@ __builtin_expect的作用是优化编译器并不是改变条件判断的值
 
 /// 断言宏封装
 #define WEBS_ASSERT(x)                                                               \
-    if (WEBS_UNLIKELY((!x))) {                                                       \
+    if (WEBS_UNLIKELY(!(x))) {                                                       \
         WEBS_LOG_ERROR(WEBS_LOG_ROOT()) << "ASSERTION :" << #x << "\nbacktrace:\n"   \
                                         << webs::BacktraceToString(100, 2, "     "); \
         assert(x);                                                                   \
@@ -39,7 +39,7 @@ __builtin_expect的作用是优化编译器并不是改变条件判断的值
 
 /// 断言宏封装
 #define WEBS_ASSERT2(x, w)                              \
-    if (WEBS_UNLIKELY((!x))) {                          \
+    if (WEBS_UNLIKELY(!(x))) {                          \
         WEBS_LOG_ERROR(WEBS_LOG_ROOT())                 \
             << "ASSERTION : " #x << "\n"                \
             << w << "\n"                                \
