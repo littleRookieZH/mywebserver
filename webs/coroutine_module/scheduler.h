@@ -182,6 +182,16 @@ protected:
     // 主线程id (use_caller)
     int m_rootThread = 0;
 };
+
+class SchedulerSwitcher : public Noncopyable {
+public:
+    SchedulerSwitcher(Scheduler *target = nullptr);
+    ~SchedulerSwitcher();
+
+private:
+    Scheduler *m_caller;
+};
+
 } // namespace webs
 
 #endif
