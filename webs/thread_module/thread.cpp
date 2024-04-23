@@ -4,7 +4,7 @@
 namespace webs {
 // 使用 thread_local 关键字声明的变量，每个线程都会拥有一份独立的副本，而不同线程间的变量值互不影响。
 static thread_local Thread *t_thread = nullptr; // 工作线程
-static thread_local std::string t_thread_name = "UNKNON";
+static thread_local std::string t_thread_name = "UNKNOW";
 static webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");
 
 /* 获取当前线程的指针 */
@@ -29,10 +29,11 @@ void Thread::SetName(const std::string &name) {
 }
 
 Thread::Thread(std::function<void()> cb, const std::string &name) :
-    m_name(name), m_cb(cb) {
+    m_cb(cb), m_name(name) {
+    WEBS_LOG_DEBUG(g_logger) << "pthread_nmae = " << name;
     // 确保name不为空
     if (m_name.empty()) {
-        m_name = "UNKNON";
+        m_name = "UNKNOW";
     }
     // 创建线程
     int rt = pthread_create(&m_thread, NULL, Thread::run, this);

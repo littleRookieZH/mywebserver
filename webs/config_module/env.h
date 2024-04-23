@@ -2,8 +2,8 @@
 #define __WEBS_ENV_H__
 #include <map>
 #include <vector>
-#include "../util/mutex.h"
-#include "../util/singleton.h"
+#include "../util_module/mutex.h"
+#include "../util_module/singleton.h"
 
 namespace webs {
 /* 这个类提供了一系列方法管理应用程序的环境配置和参数信息 */

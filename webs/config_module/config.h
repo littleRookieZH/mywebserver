@@ -7,8 +7,8 @@
 #include <boost/lexical_cast.hpp>
 #include <algorithm>
 #include <unordered_set>
-#include "../util/mutex.h"
-#include "../util/util.h"
+#include "../util_module/mutex.h"
+#include "../util_module/util.h"
 #include "env.h"
 #include "../log_module/log.h"
 

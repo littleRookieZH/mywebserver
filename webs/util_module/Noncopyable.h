@@ -7,10 +7,8 @@ class Noncopyable {
 public:
     Noncopyable(){};
     ~Noncopyable(){};
-
-private:
-    Noncopyable(const Noncopyable &);
-    Noncopyable &operator=(const Noncopyable &);
+    Noncopyable(const Noncopyable &) = delete;
+    Noncopyable &operator=(const Noncopyable &) = delete;
 };
 }; // namespace webs
 

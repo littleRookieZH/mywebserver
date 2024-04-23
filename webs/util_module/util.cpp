@@ -9,6 +9,7 @@
 #include <sys/syscall.h>
 #include <execinfo.h>
 #include "../log_module/log.h"
+#include "../coroutine_module/fiber.h"
 
 namespace webs {
 
@@ -17,6 +18,10 @@ static webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");
 /*使用系统调用获取线程*/
 pid_t GetThreadId() {
     return syscall(SYS_gettid);
+}
+
+uint32_t GetFiberId() {
+    return webs::Fiber::GetFiberId();
 }
 
 /* 查找指定路径下的后缀为subfix的所有常规文件路径；files是传出参数 */
@@ -173,7 +178,7 @@ bool FSUtil::Rm(const std::string &path) {
     bool ret = true;
     struct dirent *dp = nullptr;
     // 如果是目录，递归删除
-    while (dp = readdir(dir)) {
+    while ((dp = readdir(dir))) {
         if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")) {
             continue;
         }
@@ -275,7 +280,6 @@ bool FSUtil::OpenForWrite(std::ofstream &ofs, const std::string &filename, std::
 static std::string demangle(const char *str) {
     // sscanf
     // %*[^(]%*[^_] %255[^)+]
-    int rs;
     size_t size = 0;
     int status = 0;
     std::string rt;

@@ -1,6 +1,6 @@
 #include "scheduler.h"
 #include "../log_module/log.h"
-#include "../util/macro.h"
+#include "../util_module/macro.h"
 #include "hook.h"
 
 namespace webs {
@@ -63,9 +63,9 @@ void Scheduler::tickle() {
 /* 协程无任务可以调度时，执行idle协程 */
 void Scheduler::idle() {
     WEBS_LOG_INFO(g_logger) << "idle";
-    while (!stopping()) { //如果不能停止，设置当前协程的状态，并切换其他协程执行
-        webs::Fiber::YieldToHold();
-    }
+    // while (!stopping()) { //如果不能停止，设置当前协程的状态，并切换其他协程执行
+    //     webs::Fiber::YieldToHold();
+    // }
 }
 
 /* 设置当前的协程调度器 */
@@ -76,22 +76,28 @@ void Scheduler::setThis() {
 /* 启动协程调度器 */
 void Scheduler::start() {
     MutexType::Lock lock(m_mutex);
-    if (!stopping) {
+    if (!m_stopping) {
         return;
     }
+    WEBS_LOG_DEBUG(g_logger) << m_name << " start";
+    m_stopping = false;
+    // 线程池为空
     WEBS_ASSERT(m_threads.empty());
+
     m_threads.resize(m_threadCount);
-    for (int i = 0; i < m_threadCount; ++i) {
+    for (size_t i = 0; i < m_threadCount; ++i) {
         m_threads[i].reset(new Thread(std::bind(&Scheduler::run, this), m_name + "_" + std::to_string(i)));
         m_threadIds.push_back(m_threads[i]->getId());
     }
+    lock.unlock();
 }
 
 /* 停止协程调度器 */
 void Scheduler::stop() {
     m_autoStop = true;
     if (m_rootFiber && m_threadCount == 0 && (m_rootFiber->getState() == Fiber::TERM || m_rootFiber->getState() == Fiber::INIT)) {
-        WEBS_LOG_INFO(g_logger) << this << "stopped"; // 这里怎么直接将指针传进去了？
+        WEBS_LOG_INFO(g_logger) << this << " stopped";
+
         m_stopping = true;
         if (stopping()) {
             return;
@@ -105,7 +111,7 @@ void Scheduler::stop() {
         WEBS_ASSERT(GetThis() != this); // 不能再创建该线程的调度器执行stop 有点疑惑。。
     }
     m_stopping = true;
-    for (int i = 0; i < m_threadCount; ++i) {
+    for (size_t i = 0; i < m_threadCount; ++i) {
         tickle();
     }
     if (m_rootFiber) {
@@ -113,9 +119,17 @@ void Scheduler::stop() {
     }
     // 不太理解
     if (m_rootFiber) {
-        if (!stopping) {
+        if (!stopping()) {
             m_rootFiber->call();
         }
+    }
+    std::vector<Thread::ptr> thrs;
+    {
+        MutexType::Lock lock(m_mutex);
+        thrs.swap(m_threads);
+    }
+    for (auto &i : thrs) {
+        i->join();
     }
 }
 
@@ -129,7 +143,7 @@ bool Scheduler::stopping() {
  * 作用：将当前正在执行的协程重新加入工作队列；
  * 解释了：cb_fiber->m_state = Fiber::HOLD; cb_fiber.reset();的效果。并不是修改完，该协程就被释放了 --->该协程会被重新加入工作队列
  * */
-void Scheduler::switchTo(int thread = -1) {
+void Scheduler::switchTo(int thread) {
     // 在指定的线程中执行工作协程，执行完再切换进来其他协程执行
     WEBS_ASSERT(Scheduler::GetThis() != nullptr);
     if (Scheduler::GetThis() == this) {
@@ -150,7 +164,7 @@ std::ostream &Scheduler::dump(std::ostream &os) {
        << " stopping = " << m_stopping
        << " ]" << std::endl
        << "    ";
-    for (int i = 0; i < m_threadIds.size(); ++i) {
+    for (size_t i = 0; i < m_threadIds.size(); ++i) {
         if (i) {
             os << ", ";
         }
@@ -169,8 +183,12 @@ void Scheduler::run() {
     if (webs::GetThreadId() != m_rootThread) {
         t_scheduler_fiber = Fiber::GetThis().get();
     }
+    // WEBS_LOG_DEBUG(g_logger) << m_name << " run 186";
 
     Fiber::ptr idle_fiber(new Fiber(std::bind(&Scheduler::idle, this)));
+
+    // WEBS_LOG_DEBUG(g_logger) << m_name << " run 189";
+
     Fiber::ptr cb_fiber;
     FiberAndThread ft;
     // 根据线程id查找可以运行的工作任务
@@ -224,6 +242,9 @@ void Scheduler::run() {
             }
             ft.reset();
         } else if (ft.cb) { // 二：任务是function，创建执行function的协程，并执行 --> 执行完，根据状态执行不同的策略
+
+            // WEBS_LOG_DEBUG(g_logger) << m_name << " run function";
+
             if (cb_fiber) {
                 cb_fiber->reset(ft.cb); // 重置上下文
             } else {

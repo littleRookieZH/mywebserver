@@ -4,8 +4,8 @@
 #include <functional>
 #include <map>
 #include <tuple>
-#include "../util/util.h"
-#include "../config/config.h"
+#include "../util_module/util.h"
+#include "../config_module/config.h"
 #include <yaml-cpp/yaml.h>
 
 namespace webs {
@@ -24,9 +24,9 @@ const char *LogLevel::ToString(LogLevel::Level level) {
         XX(FATAL);
 #undef XX
     default:
-        return "UNKNON";
+        return "UNKNOW";
     }
-    return "UNKNON";
+    return "UNKNOW";
 }
 /* 将文本转换成日志级别 */
 LogLevel::Level LogLevel::FromString(const std::string &str) {
@@ -260,7 +260,7 @@ void LogFormatter::init() {
     // std format type
     std::vector<std::tuple<std::string, std::string, int>> vec;
     std::string nstr;
-    for (int i = 0; i < m_pattern.size(); ++i) {
+    for (size_t i = 0; i < m_pattern.size(); ++i) {
         if (m_pattern[i] != '%') {
             nstr.append(1, m_pattern[i]);
             continue;
@@ -313,10 +313,10 @@ void LogFormatter::init() {
         if (fmt_status == 0) {
             if (!nstr.empty()) {
                 // nstr 是普通字符串，不包含 % ，之后会被格式化为字符串类型; make_tuple使用了完美转发
-                vec.push_back(std::make_tuple(nstr, std::string(), 1));
+                vec.push_back(std::make_tuple(nstr, std::string(), 0));
                 nstr.clear();
             }
-            vec.push_back(std::make_tuple(str, fmt, 0));
+            vec.push_back(std::make_tuple(str, fmt, 1));
             i = n - 1;
         } else if (fmt_status == 1) {
             // [整个模式字符串] - [从错误位置开始的子字符串]  substr(i):从i开始一直到结尾
@@ -327,7 +327,7 @@ void LogFormatter::init() {
     }
     if (!nstr.empty()) {
         // nstr 是纯字符串
-        vec.push_back(std::make_tuple(nstr, std::string(), 1));
+        vec.push_back(std::make_tuple(nstr, "", 0));
     }
 
     // 创建键值对： 格式-生成ptr对象的lamba表达式；注意是静态局部变量，避免多次初始化
@@ -432,8 +432,9 @@ void Logger::log(LogLevel::Level level, LogEvent::ptr event) {
     // 优先输出list中每一个元素的log，如果为空，输出主日志器
     if (level >= m_level) {
         Logger::ptr self = shared_from_this(); // 返回一个当前类的std::share_ptr
+        MutexType::Lock lock(m_mutex);
         if (!m_appenders.empty()) {
-            for (auto i : m_appenders) {
+            for (auto &i : m_appenders) {
                 i->log(self, level, event);
             }
         } else if (m_root) {
@@ -590,10 +591,11 @@ FileLogAppender::FileLogAppender(const std::string &filename) :
     reopen();
 }
 
-LoggerManager::LoggerManager() :
-    m_root(Logger::ptr(new Logger())) {
-    m_root->addAppender(LogAppender::ptr(new StdoutLogAppender()));
+LoggerManager::LoggerManager() {
+    m_root.reset(new Logger);
+    m_root->addAppender(LogAppender::ptr(new StdoutLogAppender));
     m_loggers[m_root->m_name] = m_root;
+    init();
 }
 
 /* 获取日志器 */
@@ -604,7 +606,7 @@ Logger::ptr LoggerManager::getLogger(const std::string &name) {
         return it->second;
     }
     // 如果不存咋则添加
-    Logger::ptr logger(new Logger());
+    Logger::ptr logger(new Logger(name));
     logger->m_root = m_root; // 不要忘记赋值主日志器
     m_loggers[name] = logger;
     return logger;

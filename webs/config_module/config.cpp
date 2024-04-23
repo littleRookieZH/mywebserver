@@ -64,7 +64,7 @@ static webs::Mutex s_mutex;
 /* 加载path文件夹里面的配置文件 */
 void Config::LoadFromConfDir(const std::string &path, bool force) {
     // 获取配置文件的路径
-    std::string path_tmp = webs::EnvMgr::GetInstance().getAbsolutePath(path);
+    std::string path_tmp = webs::EnvMgr::GetInstance()->getAbsolutePath(path);
     // 读取路径下的 .yml配置文件
     std::vector<std::string> files;
     FSUtil::ListAllFile(files, path_tmp, ".yml");
@@ -72,12 +72,13 @@ void Config::LoadFromConfDir(const std::string &path, bool force) {
     // 更新文件修改时间，并加载配置项
     for (auto &i : files) {
         {
+            ;
             struct stat st;
             lstat(i.c_str(), &st);
             // 必须使用一把新锁：如果和 LoadFromYaml 函数使用同一把锁，continue之后会导致死锁。
             webs::Mutex::Lock lock(s_mutex);
             // 非强制修改，需要进一步判断修改时间
-            if (!force && s_file2modifytime[i.c_str()] == st.st_mtime) {
+            if (!force && s_file2modifytime[i.c_str()] == static_cast<uint64_t>(st.st_mtime)) {
                 continue;
             }
             s_file2modifytime[i.c_str()] = st.st_mtime;

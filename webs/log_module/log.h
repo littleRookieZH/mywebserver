@@ -10,9 +10,9 @@
 #include <iostream>
 #include <fstream>
 #include <map>
-#include "../util/util.h"
-#include "../util/singleton.h"
-#include "../util/mutex.h"
+#include "../util_module/util.h"
+#include "../util_module/singleton.h"
+#include "../util_module/mutex.h"
 #include "../thread_module/thread.h"
 
 /**
@@ -64,10 +64,10 @@
 #define WEBS_LOG_FMT_FATAL(logger, fmt, ...) WEBS_LOG_FMT_LEVEL(logger, webs::LogLevel::FATAL, fmt, __VA_ARGS__)
 
 /* 获取主日志器 */
-#define WEBS_LOG_ROOT() webs::LoggerMgr::GetInstance().getRoot()
+#define WEBS_LOG_ROOT() webs::LoggerMgr::GetInstance()->getRoot()
 
 /* 获取 name 的日志器 */
-#define WEBS_LOG_NAME(name) webs::LoggerMgr::GetInstance().getLogger(name)
+#define WEBS_LOG_NAME(name) webs::LoggerMgr::GetInstance()->getLogger(name)
 
 namespace webs {
 class Logger;

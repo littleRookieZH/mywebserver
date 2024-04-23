@@ -1,13 +1,13 @@
 #include "fiber.h"
 #include "../log_module/log.h"
-#include "../config/config.h"
-#include "../util/macro.h"
+#include "../config_module/config.h"
+#include "../util_module/macro.h"
 #include <atomic>
 #include "scheduler.h"
 namespace webs {
 
 // 创建日志信息
-webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");
+static webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");
 // 创建原子变量
 static std::atomic<uint64_t> s_fiber_id{0};
 static std::atomic<uint64_t> s_fiber_count{0};
@@ -23,7 +23,7 @@ public:
     static void *Alloc(size_t size) {
         return malloc(size);
     }
-    static void Delloc(void *vp, size_t size) {
+    static void Dealloc(void *vp, size_t size) {
         return free(vp);
     }
 };
@@ -53,21 +53,26 @@ Fiber::Fiber() {
      * 
      * 问题：一：如何使用；二：协程调度的思路不清
      *  */
-Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool use_call) :
+Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool use_caller) :
     m_id(++s_fiber_id), m_cb(cb) {
+    ++s_fiber_count;
     // 确定运行时栈的大小，并分配内存
-    m_stacksize = m_stacksize ? m_stacksize : g_fiber_stack_size->getValue();
+    m_stacksize = stacksize ? stacksize : g_fiber_stack_size->getValue();
     m_stack = StackAllocator::Alloc(m_stacksize);
     // 保存协程上下文，并设置上下文属性
-    getcontext(&m_ctx);
+    ;
+    if (getcontext(&m_ctx)) {
+        WEBS_ASSERT2(false, "getcontext");
+    }
+
     m_ctx.uc_link = nullptr;
     m_ctx.uc_stack.ss_sp = m_stack;
     m_ctx.uc_stack.ss_size = m_stacksize;
     // 切换协程运行：一个是切换协程管理器的主协程，另一个是切换线程的主协程
-    if (!use_call) {
-        makecontext(&m_ctx, Fiber::MainFunc, 0);
+    if (!use_caller) {
+        makecontext(&m_ctx, &Fiber::MainFunc, 0);
     } else {
-        makecontext(&m_ctx, Fiber::CallerMainFunc, 0);
+        makecontext(&m_ctx, &Fiber::CallerMainFunc, 0);
     }
     // 输出日志信息
     WEBS_LOG_DEBUG(g_logger) << "Fiber::Fiber id = " << m_id;
@@ -80,7 +85,7 @@ Fiber::~Fiber() {
         // 子协程
         // WEBS_ASSERT();
         WEBS_ASSERT(m_state == INIT || m_state == TERM || m_state == EXCEPT);
-        StackAllocator::Delloc(m_stack, m_stacksize);
+        StackAllocator::Dealloc(m_stack, m_stacksize);
     } else {
         // 确认是否为主协程
         WEBS_ASSERT(!m_cb);
