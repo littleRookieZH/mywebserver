@@ -24,7 +24,7 @@ private:
         // 事件上下文类
         struct EventContext {
             // 事件执行的调度器
-            Scheduler *schedule = nullptr;
+            Scheduler *scheduler = nullptr;
             // 事件协程
             Fiber::ptr fiber;
             // 事件的回调函数
@@ -82,7 +82,7 @@ protected:
     /* 通知协程调度器有任务了；可以自定义调度器的执行方式(如何调度) */
     void tickle() override;
 
-    /* 重置socket事件上下文 */
+    /* 重置socket事件上下文容器的大小 */
     void contextResize(size_t size);
 
     /* 判断是否可以停止 */
