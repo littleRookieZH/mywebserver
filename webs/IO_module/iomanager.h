@@ -2,9 +2,10 @@
 #define __WEBS_IOMANAGER_H__
 #include "../coroutine_module/scheduler.h"
 #include "../log_module/log.h"
+#include "../IO_module/timer.h"
 
 namespace webs {
-class IOManager : public Scheduler {
+class IOManager : public Scheduler, TimerManager {
 public:
     typedef std::shared_ptr<IOManager> ptr;
     typedef RWMutex RWMutexType;
@@ -81,6 +82,9 @@ protected:
 
     /* 通知协程调度器有任务了；可以自定义调度器的执行方式(如何调度) */
     void tickle() override;
+
+    /* 当有新的定时器插入到定时器的首部,执行该函数 */
+    void onTimerInsertedAtFront() override;
 
     /* 重置socket事件上下文容器的大小 */
     void contextResize(size_t size);
