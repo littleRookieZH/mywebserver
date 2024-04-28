@@ -22,6 +22,8 @@ std::string BacktraceToString(int size = 64, int skip = 2, const std::string &pr
 
 /* 获取当前微秒数 */
 uint64_t GetCurrentUS();
+
+uint64_t GetCurrentMS();
 class FSUtil {
 public:
     static void ListAllFile(std::vector<std::string> &files, const std::string &path, const std::string &subfix);

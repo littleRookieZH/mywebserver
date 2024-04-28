@@ -85,14 +85,15 @@ protected:
     void addTimer(Timer::ptr val, RWMutexType::WriteLock &lock);
 
 private:
-    /* 检测服务器时间是否被调后了 */
+    /* 检测服务器时间是否发生了回拨 */
+    /* 时间回拨可能会导致定时器的准确性 */
     bool detectClockRollover(uint64_t now_ms);
 
 private:
     RWMutexType m_mutex;
     // 定时器集合
     std::set<Timer::ptr, Timer::Comparator> m_timers;
-    // 是否触发onTimerInsertedAtFront
+    // 是否触发了onTimerInsertedAtFront -->不是用户设计的，取决于addTimer函数
     bool m_tickled = false;
     // 上次执行时间
     uint64_t m_previousTime = 0;

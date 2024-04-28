@@ -106,6 +106,4 @@ private:
 };
 } // namespace webs
 
-/* 定时器没写呢 */
-
 #endif

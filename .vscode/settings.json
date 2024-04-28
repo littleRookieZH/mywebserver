@@ -77,7 +77,11 @@
     "variant": "cpp",
     "strstream": "cpp",
     "hash_map": "cpp",
-    "hash_set": "cpp"
+    "hash_set": "cpp",
+    "executor": "cpp",
+    "io_context": "cpp",
+    "netfwd": "cpp",
+    "timer": "cpp"
   },
   "editor.fontSize": 16,
   "window.zoomLevel": 1.5,
@@ -139,10 +143,7 @@
   "C_Cpp_Runner.compilerArgs": [],
   "C_Cpp_Runner.linkerArgs": [],
   "C_Cpp_Runner.includePaths": [],
-  "C_Cpp_Runner.includeSearch": [
-    "*",
-    "**/*"
-  ],
+  "C_Cpp_Runner.includeSearch": ["*", "**/*"],
   "C_Cpp_Runner.excludeSearch": [
     "**/build",
     "**/build/**",

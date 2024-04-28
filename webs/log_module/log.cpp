@@ -605,6 +605,7 @@ Logger::ptr LoggerManager::getLogger(const std::string &name) {
     if (it != m_loggers.end()) {
         return it->second;
     }
+
     // 如果不存咋则添加
     Logger::ptr logger(new Logger(name));
     logger->m_root = m_root; // 不要忘记赋值主日志器
