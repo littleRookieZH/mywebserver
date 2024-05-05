@@ -60,7 +60,6 @@ Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool use_caller) :
     m_stacksize = stacksize ? stacksize : g_fiber_stack_size->getValue();
     m_stack = StackAllocator::Alloc(m_stacksize);
     // 保存协程上下文，并设置上下文属性
-    ;
     if (getcontext(&m_ctx)) {
         WEBS_ASSERT2(false, "getcontext");
     }
@@ -140,6 +139,7 @@ void Fiber::swapIn() {
   * 疑问：这里的协程状态不需要切为exec吗
   */
 void Fiber::swapOut() {
+    WEBS_LOG_DEBUG(g_logger) << "swapout ";
     SetThis(Scheduler::GetMainFiber());
     if (swapcontext(&m_ctx, &Scheduler::GetMainFiber()->m_ctx)) {
         WEBS_ASSERT2(false, "swapcontext");

@@ -5,7 +5,8 @@
 #include "../IO_module/timer.h"
 
 namespace webs {
-class IOManager : public Scheduler, TimerManager {
+// 每一个类的继承权限都是单独的；public不可省
+class IOManager : public Scheduler, public TimerManager {
 public:
     typedef std::shared_ptr<IOManager> ptr;
     typedef RWMutex RWMutexType;

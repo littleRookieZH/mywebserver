@@ -63,7 +63,7 @@ public:
     virtual ~TimerManager();
 
     // 添加定时器
-    Timer::ptr addTimer(uint64_t ms, std::function<void()> cb, bool recurring);
+    Timer::ptr addTimer(uint64_t ms, std::function<void()> cb, bool recurring = false);
 
     // 添加带条件的定时器
     Timer::ptr addConditionTimer(uint64_t ms, std::function<void()> cb, std::weak_ptr<void> weak_cond, bool recurring = false);

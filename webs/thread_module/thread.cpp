@@ -36,7 +36,7 @@ Thread::Thread(std::function<void()> cb, const std::string &name) :
         m_name = "UNKNOW";
     }
     // 创建线程
-    int rt = pthread_create(&m_thread, NULL, Thread::run, this);
+    int rt = pthread_create(&m_thread, NULL, &Thread::run, this);
     if (rt) {
         WEBS_LOG_ERROR(g_logger) << "pthread_create fail, rt = " << rt << " nmae = " << name;
         throw std::logic_error(" pthread_create error");
@@ -68,7 +68,7 @@ void *Thread::run(void *arg) {
     t_thread = thread;
     t_thread_name = thread->m_name;
     thread->m_id = webs::GetThreadId();
-    pthread_setname_np(thread->m_thread, t_thread_name.substr(0, 15).c_str());
+    pthread_setname_np(pthread_self(), t_thread_name.substr(0, 15).c_str());
     std::function<void()> cb;
     cb.swap(thread->m_cb);
     // 释放信号量

@@ -30,7 +30,10 @@ set(LIB_SRC
     webs/thread_module/thread.cpp
     webs/util_module/mutex.cpp
     webs/util_module/util.cpp
+    webs/IO_module/timer.cpp
+    webs/IO_module/iomanager.cpp
     webs/test_cmake/hello.cpp
+
     # webs/test_cmake/test.cpp
     )
 
@@ -49,8 +52,9 @@ set(LIBS
         yaml-cpp
         )
 
-webs_add_executable(testmake "test/test_function/testmake.cpp" webs "${LIBS}")
+# webs_add_executable(testmake "test/test_function/testmake.cpp" webs "${LIBS}")
 webs_add_executable(test_scheduler "test/test_module/test_scheduler.cpp" webs "${LIBS}")
+webs_add_executable(test_timer "test/test_module/test_timer.cpp" webs "${LIBS}")
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)

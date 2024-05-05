@@ -25,16 +25,17 @@ std::ostream &operator<<(std::ostream &os, const EpollCtop &op) {
     default:
         return os << (int)op;
     }
+#undef XX
 }
 
 /* 输出epoll_events */
 std::ostream &operator<<(std::ostream &os, EPOLL_EVENTS events) {
     if (!events) {
-        os << "0";
+        return os << "0";
     }
     bool first = true;
 #define XX(E)          \
-    if (E == events) { \
+    if (E & events) {  \
         if (!first) {  \
             os << "|"; \
         }              \
@@ -59,7 +60,7 @@ std::ostream &operator<<(std::ostream &os, EPOLL_EVENTS events) {
 } // namespace webs
 
 /* 获取事件上下文类 */
-IOManager::FdContext::EventContext &IOManager::FdContext::getContext(Event event) {
+IOManager::FdContext::EventContext &IOManager::FdContext::getContext(IOManager::Event event) {
     switch (event) {
     case IOManager::READ:
         return FdContext::read;
@@ -89,7 +90,7 @@ void IOManager::FdContext::triggerEvent(Event event) {
         // 这里使用的是function对象的地址，ctx.cb在执行FiberAndThread(std::function<void()>*, int)构造函数的时候会被swap为nullptr
         ctx.scheduler->schedule(&ctx.cb);
     } else {
-        ctx.scheduler->schedule(ctx.fiber);
+        ctx.scheduler->schedule(&ctx.fiber);
     }
     ctx.scheduler = nullptr; // 在添加事件的时候会重新赋一个调度器
     return;
@@ -98,8 +99,8 @@ void IOManager::FdContext::triggerEvent(Event event) {
 /* 创建epoll_fd  --> 设置m_ticklefd  --> 设置监听事件  --> 注册事件 --> 设置文件描述符容器的属性 -->启动IO管理器 */
 IOManager::IOManager(size_t threads, bool use_caller, const std::string &name) :
     Scheduler(threads, use_caller, name) {
-    int epoll_fd = epoll_create(5000);
-    WEBS_ASSERT(epoll_fd > 0);
+    m_epfd = epoll_create(5000);
+    WEBS_ASSERT(m_epfd > 0);
 
     int rt = pipe(m_tickleFds);
     WEBS_ASSERT(!rt);
@@ -112,7 +113,7 @@ IOManager::IOManager(size_t threads, bool use_caller, const std::string &name) :
     rt = fcntl(m_tickleFds[0], F_SETFL, O_NONBLOCK);
     WEBS_ASSERT(!rt);
 
-    rt = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_tickleFds[0], &event);
+    rt = epoll_ctl(m_epfd, EPOLL_CTL_ADD, m_tickleFds[0], &event);
     WEBS_ASSERT(!rt);
 
     contextResize(32);
@@ -148,7 +149,7 @@ void IOManager::contextResize(size_t size) {
 
 /* 添加事件；成功返回0，失败返回-1 或者 程序中断 */
 /* 获取fd对应的socket_fd上下文 --> 校验socket_fd是否已存在当前event  --> 添加epoll监听事件 --> 设置socket_fd属性 */
-int IOManager::addEvent(int fd, Event event, std::function<void()> cb = nullptr) {
+int IOManager::addEvent(int fd, Event event, std::function<void()> cb) {
     FdContext *fd_ctx = nullptr;
     RWMutexType::ReadLock lock(m_mutex);
     if ((int)m_fdContexts.size() > fd) {
@@ -161,7 +162,7 @@ int IOManager::addEvent(int fd, Event event, std::function<void()> cb = nullptr)
         fd_ctx = m_fdContexts[fd];
     }
 
-    MutexType::Lock lock(fd_ctx->mutex);
+    FdContext::MutexType::Lock lock1(fd_ctx->mutex);
     if (WEBS_UNLIKELY(fd_ctx->events & event)) { // 添加相同事件意味着至少有两个线程在操作同一个文件描述符 ---是危险性行为
         // ()强转的优先级 低于 ->
         WEBS_LOG_ERROR(g_logger) << "addEvent assert fd = " << fd
@@ -179,7 +180,7 @@ int IOManager::addEvent(int fd, Event event, std::function<void()> cb = nullptr)
     if (rt) {
         WEBS_LOG_ERROR(g_logger) << "epoll_ctl(" << m_epfd << ", "
                                  << (EpollCtop)op << ", " << fd << ", " << (EPOLL_EVENTS)events.events << ", "
-                                 << rt << ", "
+                                 << rt
                                  << "( " << errno << ") (" << strerror(errno) << ") fd_ctx->events = "
                                  << (EPOLL_EVENTS)fd_ctx->events;
         return -1;
@@ -211,8 +212,8 @@ bool IOManager::delEvent(int fd, Event event) {
     FdContext *fd_ctx = m_fdContexts[fd];
     lock.unlock();
 
-    MutexType::Lock lock2(fd_ctx->mutex);
-    if (WEBS_UNLIKELY(!(fd_ctx->events & event))) {
+    FdContext::MutexType::Lock lock2(fd_ctx->mutex);
+    if (!(fd_ctx->events & event)) {
         return false;
     }
     Event new_events = (Event)(fd_ctx->events & ~event);
@@ -230,8 +231,8 @@ bool IOManager::delEvent(int fd, Event event) {
     }
 
     --m_pendingEventCount;
-    fd_ctx->resetContext(fd_ctx->getContext(event));
     fd_ctx->events = new_events;
+    fd_ctx->resetContext(fd_ctx->getContext(event));
 
     return true;
 }
@@ -245,8 +246,8 @@ bool IOManager::cancelEvent(int fd, Event event) {
     FdContext *fd_ctx = m_fdContexts[fd];
     lock.unlock();
 
-    MutexType::Lock lock2(fd_ctx->mutex);
-    if (WEBS_UNLIKELY(!(fd_ctx->events & event))) {
+    FdContext::MutexType::Lock lock2(fd_ctx->mutex);
+    if (!(fd_ctx->events & event)) {
         return false;
     }
     Event new_events = (Event)(fd_ctx->events & ~event);
@@ -278,7 +279,7 @@ bool IOManager::cancelAll(int fd) {
     lock.unlock();
 
     MutexType::Lock lock2(fd_ctx->mutex);
-    if (WEBS_UNLIKELY(!(fd_ctx->events))) {
+    if (!(fd_ctx->events)) {
         return false;
     }
 
@@ -327,8 +328,9 @@ void IOManager::tickle() {
     if (!hasIdleThreads()) {
         return;
     }
+    // WEBS_LOG_INFO(g_logger) << "IOManager::tickle ";
     // 向管道中发送一个消息，通知线程执行任务
-    int rt = write(m_epfd, "T", 1);
+    int rt = write(m_tickleFds[1], "T", 1);
     WEBS_ASSERT(rt == 1);
 }
 
@@ -362,17 +364,25 @@ void IOManager::idle() {
             } else {
                 next_timeout = MAX_TIMEOUT;
             }
-            rt = epoll_wait(m_epfd, events, MAX_EVENTS, next_timeout);
+            WEBS_LOG_DEBUG(g_logger) << " epoll_wait time " << next_timeout;
+
+            rt = epoll_wait(m_epfd, events, MAX_EVENTS, (int)next_timeout);
             if (rt < 0 && errno == EINTR) {
             } else {
                 break;
             }
         } while (true);
 
+        WEBS_LOG_DEBUG(g_logger) << " epoll_wait rt " << rt;
+
         // 处理定时器的回调函数；如果有的话
         std::vector<std::function<void()>> cbs;
         listExpiredCb(cbs);
+
         if (!cbs.empty()) {
+            // for (auto &i : cbs) {
+            //     schedule(i);
+            // }
             schedule(cbs.begin(), cbs.end());
             cbs.clear();
         }
@@ -382,26 +392,27 @@ void IOManager::idle() {
             epoll_event &event = events[i];
             // 检查事件是否是唤醒线程的事件
             if (event.data.fd == m_tickleFds[0]) {
-                char buf[256];
-                while (read(m_tickleFds[0], buf, sizeof(buf)))
+                uint8_t buf[256];
+                while (read(m_tickleFds[0], buf, sizeof(buf)) > 0)
                     ;
                 continue;
             }
 
             // 确定事件
             FdContext *ctx = (FdContext *)event.data.ptr;
-            MutexType::Lock lock(ctx->mutex);
+            FdContext::MutexType::Lock lock(ctx->mutex);
             if (event.events & (EPOLLERR | EPOLLHUP)) {
                 event.events |= (EPOLLIN | EPOLLOUT) & ctx->events; // 将监听事件设置为socket的读或者写事件
             }
             int real_events = NONE;
             if (event.events & EPOLLIN) {
                 real_events |= READ;
-            } else if (event.events & EPOLLOUT) {
+            }
+            if (event.events & EPOLLOUT) {
                 real_events |= WRITE;
             }
             // 校验事件
-            if (ctx->events & real_events == NONE) {
+            if ((ctx->events & real_events) == NONE) {
                 continue;
             }
 
@@ -415,6 +426,7 @@ void IOManager::idle() {
                                          << (EpollCtop)op << ", " << ctx->fd << ", "
                                          << (EPOLL_EVENTS)event.events << "): " << res
                                          << "( " << errno << strerror(errno) << ")";
+                continue;
             }
 
             // 触发事件
@@ -426,13 +438,12 @@ void IOManager::idle() {
                 ctx->triggerEvent(WRITE);
                 --m_pendingEventCount;
             }
-
-            // 切换其他上下文执行，不能直接使用swapout
-            Fiber::ptr fiber = Fiber::GetThis();
-            auto raw = fiber.get();
-            fiber.reset();
-            raw->swapOut();
         }
+        // 切换其他上下文执行，不能直接使用swapout
+        Fiber::ptr fiber = Fiber::GetThis();
+        auto raw = fiber.get();
+        fiber.reset();
+        raw->swapOut();
     }
 }
 

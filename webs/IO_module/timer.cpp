@@ -1,6 +1,10 @@
 #include "timer.h"
 #include "../util_module/util.h"
+#include "../log_module/log.h"
+
 namespace webs {
+
+static webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");
 
 /* 定时器的比较仿函数 */
 
@@ -15,10 +19,10 @@ bool Timer::Comparator::operator()(const Timer::ptr &lhs, const Timer::ptr &rhs)
     if (!rhs) {
         return false;
     }
-    if (lhs->m_ms < rhs->m_ms) {
+    if (lhs->m_next < rhs->m_next) {
         return true;
     }
-    if (rhs->m_ms < lhs->m_ms) {
+    if (rhs->m_next < lhs->m_next) {
         return false;
     }
     return lhs.get() < rhs.get();
@@ -88,7 +92,7 @@ bool Timer::reset(uint64_t ms, bool from_now) {
     }
     m_next = starttime + ms;
     m_ms = ms;
-    m_manager->m_timers.insert(shared_from_this());
+    m_manager->addTimer(shared_from_this(), lock);
     return true;
 }
 
@@ -108,6 +112,13 @@ Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb, bool re
     return newTimer;
 }
 
+static void OnTime(std::function<void()> cb, std::weak_ptr<void> weak_cond) {
+    std::shared_ptr<void> p = weak_cond.lock();
+    if (p) {
+        cb();
+    }
+}
+
 // 插入定时器 --> 如果是队首，判断是否需要执行对应的函数
 void TimerManager::addTimer(Timer::ptr val, RWMutexType::WriteLock &lock) {
     auto it = m_timers.insert(val).first;
@@ -121,13 +132,6 @@ void TimerManager::addTimer(Timer::ptr val, RWMutexType::WriteLock &lock) {
     }
 }
 
-static void OnTime(std::function<void()> cb, std::weak_ptr<void> weak_cond) {
-    std::shared_ptr<void> p = weak_cond.lock();
-    if (p) {
-        cb();
-    }
-}
-
 // 添加带条件的定时器
 Timer::ptr TimerManager::addConditionTimer(uint64_t ms, std::function<void()> cb, std::weak_ptr<void> weak_cond, bool recurring) {
     return addTimer(ms, std::bind(&OnTime, cb, weak_cond), recurring);
@@ -135,7 +139,7 @@ Timer::ptr TimerManager::addConditionTimer(uint64_t ms, std::function<void()> cb
 
 /* 到最近一个定时器执行的时间间隔 */
 uint64_t TimerManager::getNextTimer() {
-    RWMutexType::WriteLock lock(m_mutex);
+    RWMutexType::ReadLock lock(m_mutex);
     m_tickled = false;
     if (m_timers.empty()) {
         return ~0ull; // 返回特定值
@@ -145,7 +149,7 @@ uint64_t TimerManager::getNextTimer() {
     if (nowtime >= next->m_next) {
         return 0; // 本来应该执行的定时器不知道什么原因没有执行
     } else {
-        return nowtime - next->m_next; // 还剩多少时间
+        return next->m_next - nowtime; // 还剩多少时间
     }
 }
 
@@ -172,15 +176,16 @@ void TimerManager::listExpiredCb(std::vector<std::function<void()>> &cbs) {
     if (!rollback && (*m_timers.begin())->m_next > nowtime) {
         return;
     }
+
     Timer::ptr now_timer(new Timer(nowtime));
     auto it = rollback ? m_timers.end() : m_timers.lower_bound(now_timer);
     while (it != m_timers.end() && (*it)->m_next == nowtime) {
         ++it;
     }
+
     expired.insert(expired.begin(), m_timers.begin(), it);
     m_timers.erase(m_timers.begin(), it);
     cbs.reserve(expired.size());
-
     for (auto &i : expired) {
         cbs.push_back(i->m_cb);
         if (i->m_recurring) {
@@ -195,7 +200,7 @@ void TimerManager::listExpiredCb(std::vector<std::function<void()>> &cbs) {
 /* 检测服务器时间是否发生了回拨；并更新上次执行时间 */
 bool TimerManager::detectClockRollover(uint64_t now_ms) {
     bool rollover = false;
-    if (now_ms < m_previousTime - 60 * 1000 * 1000) {
+    if (now_ms < (m_previousTime - 60 * 1000 * 1000)) {
         rollover = true;
     }
     m_previousTime = now_ms;

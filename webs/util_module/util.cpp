@@ -1,4 +1,4 @@
-#include "util.h"
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -8,8 +8,10 @@
 #include <signal.h>
 #include <sys/syscall.h>
 #include <execinfo.h>
+
 #include "../log_module/log.h"
 #include "../coroutine_module/fiber.h"
+#include "util.h"
 
 namespace webs {
 
@@ -22,6 +24,12 @@ pid_t GetThreadId() {
 
 uint32_t GetFiberId() {
     return webs::Fiber::GetFiberId();
+}
+
+uint64_t GetCurrentMS() {
+    struct timeval val;
+    gettimeofday(&val, NULL);
+    return val.tv_sec * 1000ul + val.tv_usec / 1000;
 }
 
 /* 查找指定路径下的后缀为subfix的所有常规文件路径；files是传出参数 */

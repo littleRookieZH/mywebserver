@@ -54,10 +54,11 @@ Scheduler *Scheduler::GetThis() {
 Fiber *Scheduler::GetMainFiber() {
     return t_scheduler_fiber;
 }
-
+static int tickleindex = 1;
 /* 通知协程调度器有任务了；可以自定义调度器的执行方式(如何调度) */
 void Scheduler::tickle() {
-    WEBS_LOG_INFO(g_logger) << "tickle";
+    WEBS_LOG_INFO(g_logger) << "tickle "
+                            << "_ " << tickleindex++;
 }
 
 /* 协程无任务可以调度时，执行idle协程 */
@@ -120,6 +121,7 @@ void Scheduler::stop() {
     // 不太理解
     if (m_rootFiber) {
         if (!stopping()) {
+            WEBS_LOG_INFO(g_logger) << " stop start run";
             m_rootFiber->call();
         }
     }
@@ -193,6 +195,8 @@ void Scheduler::run() {
     FiberAndThread ft;
     // 根据线程id查找可以运行的工作任务
     while (true) {
+        WEBS_LOG_DEBUG(g_logger) << m_name << " run   work";
+
         ft.reset();
         // 是否采用用户自定义的调度方法
         bool tickle_me = false;
@@ -241,6 +245,9 @@ void Scheduler::run() {
                 ft.fiber->m_state = Fiber::HOLD;
             }
             ft.reset();
+
+            WEBS_LOG_DEBUG(g_logger) << m_name << " run   fiber";
+
         } else if (ft.cb) { // 二：任务是function，创建执行function的协程，并执行 --> 执行完，根据状态执行不同的策略
 
             // WEBS_LOG_DEBUG(g_logger) << m_name << " run function";
@@ -265,6 +272,9 @@ void Scheduler::run() {
                 cb_fiber->m_state = Fiber::HOLD;
                 cb_fiber.reset(); // 将协程重置；并不会导致工作协程被改变(仅仅是引用数减一)
             }
+
+            WEBS_LOG_DEBUG(g_logger) << m_name << " run   m_cb ";
+
         } else { // 三：无任务。执行idle函数。idle可以根据不同的使用场景执行不同的策略，比如：切换其他线程去执行、当前线程循环等待....
             if (is_active) {
                 --m_activeThreadCount;
@@ -274,12 +284,18 @@ void Scheduler::run() {
                 WEBS_LOG_INFO(g_logger) << "idle fiber term";
                 break;
             }
+
+            WEBS_LOG_DEBUG(g_logger) << m_name << " exec   idle ";
+
             ++m_activeThreadCount;
             idle_fiber->swapIn();
+            WEBS_LOG_DEBUG(g_logger) << m_name << " end   exec   idle ";
             --m_activeThreadCount;
             if (idle_fiber->getState() != Fiber::TERM && idle_fiber->getState() != Fiber::EXCEPT) {
                 idle_fiber->m_state = Fiber::HOLD;
             }
+
+            // WEBS_LOG_DEBUG(g_logger) << m_name << " end   exec   idle ";
         }
     }
 }

@@ -50,7 +50,7 @@ public:
 
     /* 调度协程，可以是function，也可以是协程 */
     template <class FiberOrCb>
-    bool schedule(FiberOrCb fc, int thread = -1) {
+    void schedule(FiberOrCb fc, int thread = -1) {
         bool need_tickle = false;
         {
             MutexType::Lock lock(m_mutex);
@@ -60,23 +60,22 @@ public:
         if (need_tickle) {
             tickle();
         }
-        return need_tickle;
     }
 
     /* 批量调度协程 */
     template <class InputIterator>
-    bool schedule(InputIterator begin, InputIterator end) {
+    void schedule(InputIterator begin, InputIterator end) {
         bool need_tickle = false;
         {
             MutexType::Lock lock(m_mutex);
             while (begin != end) {
                 need_tickle = scheduleNolock(&*begin, -1) || need_tickle;
+                ++begin;
             }
         }
         if (need_tickle) {
             tickle();
         }
-        return need_tickle;
     }
     void switchTo(int thread = -1);
     std::ostream &dump(std::ostream &os);
