@@ -65,5 +65,5 @@ function(webs_add_executable targetname srcs depends libs)
     add_executable(${targetname} ${srcs})
     add_dependencies(${targetname} ${depends})
     force_redefine_file_macro_for_sources(${targetname})
-    target_link_libraries(${targetname} ${libs})
+    target_link_libraries(${targetname} ${libs})# 链接库文件
 endfunction()
