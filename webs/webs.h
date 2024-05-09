@@ -9,6 +9,7 @@
 #include "./coroutine_module/fiber.h"
 #include "./coroutine_module/hook.h"
 #include "./coroutine_module/scheduler.h"
+#include "./coroutine_module/fd_manager.h"
 
 // log_module
 #include "./log_module/log.h"

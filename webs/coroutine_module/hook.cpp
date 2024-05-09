@@ -195,6 +195,7 @@ int usleep(useconds_t usec) {
     webs::Fiber::ptr fiber = webs::Fiber::GetThis();
     iom->addTimer(usec / 1000, std::bind((void (webs::Scheduler::*)(webs::Fiber::ptr fc, int thread)) & webs::IOManager::schedule, iom, fiber, -1));
     webs::Fiber::YieldToHold();
+    return 0;
 }
 
 int nanosleep(const struct timespec *req, struct timespec *rem) {
@@ -206,6 +207,7 @@ int nanosleep(const struct timespec *req, struct timespec *rem) {
     uint64_t ms = req->tv_sec * 1000 + req->tv_nsec / 1000 / 1000;
     iom->addTimer(ms, std::bind((void (webs::Scheduler::*)(webs::Fiber::ptr fc, int thread)) & webs::IOManager::schedule, iom, fiber, -1));
     webs::Fiber::YieldToHold();
+    return 0;
 }
 
 /* 如果设置了hook，则还需要将fd加入到Fdctx中 */
@@ -259,7 +261,7 @@ int conntect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen
             },
             winfo);
     }
-    int rt = iom->addEvent(fd, webs::IOManager::Event::WRITE);
+    rt = iom->addEvent(fd, webs::IOManager::Event::WRITE);
     if (rt == 0) {
         webs::Fiber::YieldToHold();
         if (timer) {
@@ -435,20 +437,20 @@ int fcntl(int fd, int cmd, ... /* arg */) {
     {
         va_end(va);
         return fcntl_f(fd, cmd);
-    }break;
+    } break;
     case F_SETLK:
     case F_SETLKW:
-    case F_GETLK:{
-        struct flock* arg = va_arg(va, struct flock*);// 为什么加了()就不对了
+    case F_GETLK: {
+        struct flock *arg = va_arg(va, struct flock *); // 为什么加了()就不对了
         va_end(va);
         return fcntl_f(fd, cmd, arg);
-    }break;
+    } break;
     case F_GETOWN_EX:
-    case F_SETOWN_EX:{
-        struct f_owner_exlock* arg = va_arg(va, struct f_owner_exlock*);
+    case F_SETOWN_EX: {
+        struct f_owner_exlock *arg = va_arg(va, struct f_owner_exlock *);
         va_end(va);
         return fcntl_f(fd, cmd, arg);
-    }break;
+    } break;
     default:
         va_end(va);
         return fcntl_f(fd, cmd);
@@ -459,13 +461,13 @@ int fcntl(int fd, int cmd, ... /* arg */) {
 int ioctl(int fd, unsigned long request, ...) {
     va_list va;
     va_start(va, request);
-    void* arg = va_arg(va, void*);
+    void *arg = va_arg(va, void *);
     va_end(va);
 
-    if(request == FIONBIO){
-        bool usr_nonblock = !!*(int*)arg;
+    if (request == FIONBIO) {
+        bool usr_nonblock = !!*(int *)arg;
         webs::FdCtx::ptr ctx = webs::FdMgr::GetInstance()->get(fd);
-        if(!ctx || ctx->isClose() || !ctx->isSocket()){
+        if (!ctx || ctx->isClose() || !ctx->isSocket()) {
             return ioctl_f(fd, request, arg);
         }
         ctx->setUserNonblock(usr_nonblock);
@@ -482,14 +484,14 @@ int getsockopt(int sockfd, int level, int optname,
 /* hook？ level == SOL_SOCKET? --> optname = RCVTIMEO || SNDTIMEO? --> 设置超时时间 */
 int setsockopt(int sockfd, int level, int optname,
                const void *optval, socklen_t optlen) {
-    if(!webs::t_hook_enable){
+    if (!webs::t_hook_enable) {
         return setsockopt_f(sockfd, level, optname, optval, optlen);
     }
-    if(level == SOL_SOCKET){        
-        if(optname == SO_RCVTIMEO || optname == SO_SNDTIMEO){
+    if (level == SOL_SOCKET) {
+        if (optname == SO_RCVTIMEO || optname == SO_SNDTIMEO) {
             webs::FdCtx::ptr ctx = webs::FdMgr::GetInstance()->get(sockfd);
-            if(ctx){
-                const struct timeval* timeout = (const struct timeval*)optval;
+            if (ctx) {
+                const struct timeval *timeout = (const struct timeval *)optval;
                 ctx->setTimeout(optname, timeout->tv_sec * 1000 + timeout->tv_usec / 1000);
             }
         }
