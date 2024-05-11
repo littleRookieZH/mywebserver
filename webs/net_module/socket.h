@@ -9,12 +9,13 @@
 #include <memory>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <openssl/ssl.h>
 
 namespace webs {
 class Socket : public std::enable_shared_from_this<Socket>, public Noncopyable {
 public:
     typedef std::shared_ptr<Socket> ptr;
-    typedef std::weak_ptr<Socket> ptr;
+    typedef std::weak_ptr<Socket> weak_ptr;
 
     /* Socket类型 */
     enum Type {
@@ -70,23 +71,23 @@ public:
     /* 设置接收超时时间(毫秒) */
     void setRecvTimeout(uint64_t v);
 
-    /* 获取sockopt; @see getsockopt() */
-    bool getOption(int level, int option, void *optval, socklen_t *optlen);
+    /* 获取sockopt; @see getsockopt(); optval输出参数 */
+    bool getOption(int level, int optname, void *optval, socklen_t *optlen);
 
     /* getOption() 模板 --> 对getOption封装 */
     template <typename T>
-    bool getOption(int level, int option, const T &value) {
+    bool getOption(int level, int optname, T &value) {
         socklen_t len = sizeof(T);
-        return getOption(level, option, &value, &len);
+        return getOption(level, optname, &value, &len);
     }
 
-    /* 设置sockopt; @see setsockopt() */
-    bool setOption(int level, int option, void *optval, socklen_t optlen);
+    /* 设置sockopt; @see setsockopt()；optval输入参数 */
+    bool setOption(int level, int optname, const void *optval, socklen_t optlen);
 
     /* setOption() 模板 */
     template <typename T>
-    bool setOption(int level, int option, const T &optval) {
-        return setOption(level, option, &optval, sizeof(T));
+    bool setOption(int level, int optname, const T &optval) {
+        return setOption(level, optname, &optval, sizeof(T));
     }
 
     /**
@@ -247,14 +248,14 @@ public:
     std::string toString() const;
 
     /**
-     * @brief 获取远端地址
+     * @brief 获取远端地址；如果不存在，尝试获取
      * 
      * @return Address::ptr 
      */
     Address::ptr getRemoteAddress();
 
     /**
-     * @brief 获取本地地址
+     * @brief 获取本地地址；如果不存在，尝试获取
      * 
      * @return Address::ptr 
      */
@@ -372,7 +373,7 @@ protected:
      * @return true 
      * @return false 
      */
-    virtual bool init();
+    virtual bool init(int sock);
 
 protected: // 为什么这个数据的访问权限是protected？
     // socket的文件描述符
@@ -391,7 +392,55 @@ protected: // 为什么这个数据的访问权限是protected？
     Address::ptr m_remoteAddress;
 };
 
-class SSLSocket : public Socket {};
+class SSLSocket : public Socket {
+public:
+    typedef std::shared_ptr<SSLSocket> ptr;
+
+    static SSLSocket::ptr CreateTCP(Address::ptr address);
+    static SSLSocket::ptr CreateTCPSocket();
+    static SSLSocket::ptr CreateTCPSocket6();
+
+    SSLSocket(int family, int type, int protocol = 0);
+
+    virtual bool bind(webs::Address::ptr addr) override;
+
+    virtual bool listen(int backlog = SOMAXCONN) override;
+
+    virtual Socket::ptr accept() override;
+
+    virtual bool connect(const Address::ptr addr, uint64_t timeout_ms = -1) override;
+
+    virtual bool reconnect(uint64_t timeout_ms = -1) override;
+
+    virtual bool close() override;
+
+    virtual int send(const void *buf, size_t length, int flags = 0) override;
+
+    virtual int send(const iovec *buf, size_t length, int flags = 0) override;
+
+    virtual int sendTo(const void *buf, size_t length, const Address::ptr to, int flags = 0) override;
+
+    virtual int sendTo(const iovec *buf, size_t length, const Address::ptr to, int flags = 0) override;
+
+    virtual int recv(const void *buf, size_t length, int flags = 0) override;
+
+    virtual int recv(const iovec *buf, size_t length, int flags = 0) override;
+
+    virtual int recvFrom(const void *buf, size_t length, const Address::ptr from, int flags = 0) override;
+
+    virtual int recvFrom(const iovec *buf, size_t length, const Address::ptr from, int flags = 0) override;
+
+    virtual std::ostream &dump(std::ostream &os) const override;
+
+    bool loadCertificates(const std::string &cert_file, const std::string &key_file);
+
+protected:
+    virtual bool init(int sock) override;
+
+private:
+    std::shared_ptr<SSL_CTX> m_ctx;
+    std::shared_ptr<SSL> m_ssl;
+};
 
 std::ostream &operator<<(std::ostream &os, const Socket &sock);
 } // namespace webs
