@@ -173,11 +173,11 @@ private:
     sockaddr_in6 m_addr;
 };
 
-class UinxAddress : public Address {
+class UnixAddress : public Address {
 public:
-    typedef std::shared_ptr<UinxAddress> ptr;
-    UinxAddress();
-    UinxAddress(const std::string &path);
+    typedef std::shared_ptr<UnixAddress> ptr;
+    UnixAddress();
+    UnixAddress(const std::string &path);
 
     /* 返回sockaddr指针，只读 */
     virtual const sockaddr *getAddr() const;

@@ -190,7 +190,7 @@ public:
     /**
      * @brief 接收数据
      * 
-     * @param buf 接收数据的内存位置
+     * @param buf 接收数据的内存位置 -- 是传出参数
      * @param length 内存的大小
      * @param flags 接收数据时的行为：如非堵塞（MSG_DONTWAIT）、接收紧急数据..
      * @return int 
@@ -198,7 +198,7 @@ public:
      *      @retval =0 socket被关闭
      *      @retval <0 socket出错
      */
-    virtual int recv(const void *buf, size_t length, int flags = 0);
+    virtual int recv(void *buf, size_t length, int flags = 0);
 
     /**
      * @brief 接收数据
@@ -208,29 +208,29 @@ public:
      * @param flags 接收数据时的行为：如非堵塞（MSG_DONTWAIT）、接收紧急数据..
      * @return int 
      */
-    virtual int recv(const iovec *buf, size_t length, int flags = 0);
+    virtual int recv(iovec *buf, size_t length, int flags = 0);
 
     /**
      * @brief 从当前的socket读取数据 --- 用于UDP
      * 
      * @param buf 接收数据的内存
      * @param length 内存的大小
-     * @param from 发送端地址 --- 必须得指定数据的发送端，即数据来源
+     * @param from 用来获取发送端地址 --- 数据来源
      * @param flags 
      * @return int 
      */
-    virtual int recvFrom(const void *buf, size_t length, const Address::ptr from, int flags = 0);
+    virtual int recvFrom(void *buf, size_t length, const Address::ptr from, int flags = 0);
 
     /**
      * @brief 从当前的socket读取数据 -- 用于UDP
      * 
      * @param buf 接收数据的内存 ---> 适用于缓冲区是IO内存块
      * @param length 内存的大小
-     * @param from 发送端地址 --- 必须得指定数据的发送端，即数据来源
+     * @param from 用来获取发送端地址 --- 数据来源
      * @param flags 
      * @return int 
      */
-    virtual int recvFrom(const iovec *buf, size_t length, const Address::ptr from, int flags = 0);
+    virtual int recvFrom(iovec *buf, size_t length, const Address::ptr from, int flags = 0);
 
     /**
      * @brief 输出信息到输出流
@@ -313,7 +313,9 @@ public:
      * @return true 
      * @return false 
      */
-    bool isVaild() const;
+    bool isVaild() const {
+        return m_sock != -1;
+    }
 
     /**
      * @brief Get the socket Error 
@@ -365,7 +367,7 @@ protected:
      * @brief 初始化socket
      * 
      */
-    void initsock();
+    void initSock();
 
     /**
      * @brief 初始化socket  -- 用于派生类重写
@@ -422,13 +424,13 @@ public:
 
     virtual int sendTo(const iovec *buf, size_t length, const Address::ptr to, int flags = 0) override;
 
-    virtual int recv(const void *buf, size_t length, int flags = 0) override;
+    virtual int recv(void *buf, size_t length, int flags = 0) override;
 
-    virtual int recv(const iovec *buf, size_t length, int flags = 0) override;
+    virtual int recv(iovec *buf, size_t length, int flags = 0) override;
 
-    virtual int recvFrom(const void *buf, size_t length, const Address::ptr from, int flags = 0) override;
+    virtual int recvFrom(void *buf, size_t length, const Address::ptr from, int flags = 0) override;
 
-    virtual int recvFrom(const iovec *buf, size_t length, const Address::ptr from, int flags = 0) override;
+    virtual int recvFrom(iovec *buf, size_t length, const Address::ptr from, int flags = 0) override;
 
     virtual std::ostream &dump(std::ostream &os) const override;
 

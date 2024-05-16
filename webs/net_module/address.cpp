@@ -258,7 +258,7 @@ IPAddress::ptr IPAddress::Create(const char *address, uint16_t port) {
     if (error) {
         WEBS_LOG_DEBUG(g_logger) << "IPAddress::Create(" << address
                                  << ", " << port << ") error = " << error << "errno = " << errno
-                                 << "strerr = " << strerror(errno);
+                                 << "errstr = " << strerror(errno);
         return nullptr;
     }
 
@@ -297,7 +297,7 @@ IPv4Address::ptr IPv4Address::Create(const char *addr, uint16_t port) {
     if (rt <= 0) { // 正数表示成功
         WEBS_LOG_DEBUG(g_logger) << "IPv4Address::Create(" << addr
                                  << ", " << port << ") rt = " << rt << " errno = "
-                                 << errno << "strerr = " << strerror(errno);
+                                 << errno << "errstr = " << strerror(errno);
         return nullptr;
     }
     result->m_addr.sin_port = byteswapOnLittleEndian(port);
@@ -399,7 +399,7 @@ IPv6Address::ptr IPv6Address::Create(const char *addr, uint16_t port) {
     int rt = inet_pton(AF_INET6, addr, &naddr->m_addr.sin6_addr); // 因为是静态函数，所以可以naddr可以访问m_addr
     if (rt <= 0) {
         WEBS_LOG_DEBUG(g_logger) << "IPv6Address::Create(" << addr << ", " << port
-                                 << ") rt = " << rt << "errno = " << errno << "strerr = " << strerror(errno);
+                                 << ") rt = " << rt << "errno = " << errno << "errstr = " << strerror(errno);
         return nullptr;
     }
     naddr->m_addr.sin6_port = byteswapOnLittleEndian(port);
@@ -479,7 +479,7 @@ std::ostream &operator<<(std::ostream &os, const Address &addr) {
 // 最大路径长度
 static const size_t MAX_PAHT_LEN = (sizeof((sockaddr_un *)0)->sun_path) - 1;
 
-UinxAddress::UinxAddress() {
+UnixAddress::UnixAddress() {
     memset(&m_addr, 0, sizeof(m_addr));
     m_addr.sun_family = AF_UNIX;
     // 返回 member(结构体中的成员名称) 在 type(结构体类型的名称) 结构体中的偏移量（以字节为单位）。
@@ -487,7 +487,7 @@ UinxAddress::UinxAddress() {
 }
 
 /* 如果是抽象路径(以\0开头)：m_length - 1;*/
-UinxAddress::UinxAddress(const std::string &path) {
+UnixAddress::UnixAddress(const std::string &path) {
     memset(&m_addr, 0, sizeof(m_addr));
     m_addr.sun_family = AF_INET6;
     m_length = path.size() + 1;
@@ -504,22 +504,22 @@ UinxAddress::UinxAddress(const std::string &path) {
 }
 
 /* 返回sockaddr指针，只读 */
-const sockaddr *UinxAddress::getAddr() const {
+const sockaddr *UnixAddress::getAddr() const {
     return (sockaddr *)&m_addr;
 }
 
 /* 返回sockaddr指针，读写 */
-sockaddr *UinxAddress::getAddr() {
+sockaddr *UnixAddress::getAddr() {
     return (sockaddr *)&m_addr;
 }
 
 /* 返回sockaddr的长度 */
-socklen_t UinxAddress::getAddrlen() const {
+socklen_t UnixAddress::getAddrlen() const {
     return m_length;
 }
 
 /* 可读性输出地址 */
-std::ostream &UinxAddress::insert(std::ostream &os) const {
+std::ostream &UnixAddress::insert(std::ostream &os) const {
     uint32_t length = m_length - offsetof(sockaddr_un, sun_path);
     if (length && m_addr.sun_path[0] == '\0') {          // 是抽象数据
         std::string s1(m_addr.sun_path + 1, length - 1); // 如果将\0包含在一起使用构造，会产生空字符串
@@ -529,12 +529,12 @@ std::ostream &UinxAddress::insert(std::ostream &os) const {
 }
 
 /* 设置sockaddr的长度 */
-void UinxAddress::setAddrlen(uint32_t v) {
+void UnixAddress::setAddrlen(uint32_t v) {
     m_length = v;
 }
 
 /* 返回路径 */
-std::string UinxAddress::getPath() const {
+std::string UnixAddress::getPath() const {
     uint32_t len = m_length - offsetof(sockaddr_un, sun_path);
     std::stringstream ss;
     if (len && m_addr.sun_path[0] == '\0') {                      // 是抽象数据

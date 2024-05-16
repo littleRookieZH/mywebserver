@@ -225,7 +225,7 @@ int socket(int domain, int type, int protocol) {
 }
 
 /* hook? fdmanager的fd? issocket? usernonblock? errno == EINPROGRESS?  设置条件定时器、添加事件 获取错误值*/
-int conntect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen, uint64_t timeout_ms) {
+int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen, uint64_t timeout_ms) {
     if (!webs::t_hook_enable) {
         return connect_f(fd, addr, addrlen);
     }
@@ -294,7 +294,7 @@ int conntect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen
 
 /* 返回值：0表示连接成功；-1表示连接失败 */
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    return conntect_with_timeout(sockfd, addr, addrlen, webs::s_connect_timeout);
+    return connect_with_timeout(sockfd, addr, addrlen, webs::s_connect_timeout);
 }
 
 /* 使用do_io 监听事件：读事件、超时时间：SO_RCVTIMEO

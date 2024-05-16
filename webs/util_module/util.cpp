@@ -161,7 +161,7 @@ std::string FSUtil::Dirname(const std::string &filename) {
 /* 删除文件 */
 bool FSUtil::Unlink(const std::string &filename, bool exist) {
     if (!exist && __lstat(filename.c_str())) { // 文件不存在或者无权限
-        return false;                          // 这里修改了
+        return true;                           // 这里修改了
     }
     return ::unlink(filename.c_str()) == 0;
 }
