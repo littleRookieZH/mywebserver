@@ -398,8 +398,13 @@ class SSLSocket : public Socket {
 public:
     typedef std::shared_ptr<SSLSocket> ptr;
 
+    /* 创建满足地址类型的 TCP地址 */
     static SSLSocket::ptr CreateTCP(Address::ptr address);
+
+    /* 创建IPv4的TCP地址 */
     static SSLSocket::ptr CreateTCPSocket();
+
+    /* 创建IPv6的TCP地址 */
     static SSLSocket::ptr CreateTCPSocket6();
 
     SSLSocket(int family, int type, int protocol = 0);
@@ -412,7 +417,7 @@ public:
 
     virtual bool connect(const Address::ptr addr, uint64_t timeout_ms = -1) override;
 
-    virtual bool reconnect(uint64_t timeout_ms = -1) override;
+    // virtual bool reconnect(uint64_t timeout_ms = -1) override;
 
     virtual bool close() override;
 

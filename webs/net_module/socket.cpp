@@ -6,6 +6,7 @@
 #include "../IO_module/iomanager.h"
 
 #include <netinet/tcp.h>
+#include <openssl/err.h>
 
 namespace webs {
 static webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");
@@ -344,7 +345,7 @@ int Socket::recv(void *buf, size_t length, int flags) {
 }
 
 /* 接受前校验是否连接 */
-int Socket::recv(iovec *buf, size_t length, int flags = 0) {
+int Socket::recv(iovec *buf, size_t length, int flags) {
     if (m_isConnected) {
         msghdr msg;
         memset(&msg, 0, sizeof(msg));
@@ -516,19 +517,192 @@ bool Socket::cancelAll() {
 
 namespace { // 匿名命名空间 变量和函数类似于静态变量和函数；作用域是当前文件
 struct _SSLInit {
+    _SSLInit() {
+        SSL_library_init();           // 初始化SSL库
+        SSL_load_error_strings();     // 加载SSL错误信息字符串
+        OpenSSL_add_all_algorithms(); // 添加openssl的加密算法
+    }
 };
 
-static _SSLInit s_init;
+_SSLInit s_init;
 } // namespace
 
+SSLSocket::SSLSocket(int family, int type, int protocol) :
+    Socket(family, type, protocol) {
+}
+
 SSLSocket::ptr SSLSocket::CreateTCP(Address::ptr address) {
+    return SSLSocket::ptr(new SSLSocket(address->getFamily(), TCP, 0));
 }
 
 SSLSocket::ptr SSLSocket::CreateTCPSocket() {
+    return SSLSocket::ptr(new SSLSocket(AF_INET, TCP, 0));
 }
 
 SSLSocket::ptr SSLSocket::CreateTCPSocket6() {
+    return SSLSocket::ptr(new SSLSocket(AF_INET6, TCP, 0));
 }
+
+bool SSLSocket::bind(webs::Address::ptr addr) {
+    return Socket::bind(addr);
+}
+
+bool SSLSocket::listen(int backlog) {
+    return Socket::listen(backlog);
+}
+
+Socket::ptr SSLSocket::accept() {
+    return Socket::accept();
+}
+
+/**
+ * @brief TCP连接先行；SSL握手是在网络连接之上的
+ * connect --> 创建SSL_CTX上下文对象 --> 创建SSL结构体对象 --> 进行SSL握手
+ * @param addr 
+ * @param timeout_ms 
+ * @return true 
+ * @return false 
+ */
+bool SSLSocket::connect(const Address::ptr addr, uint64_t timeout_ms) {
+    bool val = Socket::connect(addr, timeout_ms);
+    if (val) {
+        // 解析：SSLv23_client_method() - 可以确保最大的兼容性，因为它会自动选择客户端和服务器都支持的最高协议版本。
+        // SSL_CTX_free - 用于释放 SSL_CTX 对象及其占用的所有资源。可以防止内存泄露
+        // SSL_CTX_new() - 创建一个新的SSL_CTX对象作为框架，以建立启用TLS/SSL的连接。
+        m_ctx.reset(SSL_CTX_new(SSLv23_client_method()), SSL_CTX_free); // shared_ptr可以指定 对象 的释放方法
+        // SSL_new - 为连接创建一个新的SSL结构
+        m_ssl.reset(SSL_new(m_ctx.get()), SSL_free);
+        // SSL_set_fd - 将一个文件描述符（通常是一个套接字）与一个 SSL 对象关联起来，以便 SSL 对象可以使用该文件描述符进行加密的读写操作。
+        SSL_set_fd(m_ssl.get(), m_sock);
+        // SSL_connect 是 OpenSSL 库中的一个函数，用于在客户端与服务器之间建立 SSL/TLS 连接。
+        val = (SSL_connect(m_ssl.get()) == 1);
+    }
+    return val;
+}
+
+bool SSLSocket::close() {
+    return Socket::close();
+}
+
+int SSLSocket::send(const void *buf, size_t length, int flags) {
+    if (m_ssl) {
+        return SSL_write(m_ssl.get(), buf, length); // 加密发送
+    }
+    return -1;
+}
+
+int SSLSocket::send(const iovec *buf, size_t length, int flags) {
+    if (!m_ssl) {
+        return -1;
+    }
+    int total = 0;                        // 发送的字节数
+    for (size_t i = 0; i < length; ++i) { // 一块一块发送
+        int val = SSL_write(m_ssl.get(), buf[i].iov_base, buf[i].iov_len);
+        if (val <= 0) { // 发送失败
+            return val;
+        }
+        total += val;
+        if (val != (int)buf[i].iov_len) {
+            break;
+        }
+    }
+    return total;
+}
+
+int SSLSocket::sendTo(const void *buf, size_t length, const Address::ptr to, int flags) {
+    WEBS_ASSERT(false); // 禁止使用
+    return -1;
+}
+
+int SSLSocket::sendTo(const iovec *buf, size_t length, const Address::ptr to, int flags) {
+    WEBS_ASSERT(false); // 禁止使用
+    return -1;
+}
+
+int SSLSocket::recv(void *buf, size_t length, int flags) {
+    if (m_ssl) {
+        return SSL_read(m_ssl.get(), buf, length);
+    }
+    return -1;
+}
+
+int SSLSocket::recv(iovec *buf, size_t length, int flags) {
+    if (!m_ssl) {
+        return -1;
+    }
+    int total = 0;
+    for (size_t i = 0; i < length; ++i) {
+        int val = SSL_read(m_ssl.get(), buf[i].iov_base, buf[i].iov_len);
+        if (val <= 0) {
+            return val;
+        }
+        total += val;
+        if (val != (int)buf[i].iov_len) { //缓冲区中没有更多数据可读取
+            break;
+        }
+    }
+    return total;
+}
+
+int SSLSocket::recvFrom(void *buf, size_t length, const Address::ptr from, int flags) {
+    WEBS_ASSERT(false);
+    return -1;
+}
+
+int SSLSocket::recvFrom(iovec *buf, size_t length, const Address::ptr from, int flags) {
+    WEBS_ASSERT(false);
+    return -1;
+}
+
+std::ostream &SSLSocket::dump(std::ostream &os) const {
+    os << "[SSLSocket sock = " << m_sock
+       << ", is_connected" << m_isConnected
+       << ", family = " << m_family
+       << ", type = " << m_type
+       << ", protocol = " << m_protocol;
+    if (m_localAddress) {
+        os << ", local_address = " << m_localAddress->toString();
+    }
+    if (m_remoteAddress) {
+        os << ", remote_address = " << m_remoteAddress->toString();
+    }
+    return os << "]";
+}
+
+/* 服务器端创建SSL_CTX -- 加载SSL证书 -- 加载SSL私钥文件 -- 检查证书与私钥是否匹配 */
+bool SSLSocket::loadCertificates(const std::string &cert_file, const std::string &key_file) {
+    m_ctx.reset(SSL_CTX_new(SSLv23_server_method()), SSL_CTX_free);
+    if (SSL_CTX_use_certificate_chain_file(m_ctx.get(), cert_file.c_str()) != 1) { // 加载 SSL 证书链文件到 SSL 上下文对象
+        WEBS_LOG_DEBUG(g_logger) << "SSL_CTX_use_certificate_chain_file(" << cert_file << ") error";
+        return false;
+    }
+    if (SSL_CTX_use_PrivateKey_file(m_ctx.get(), key_file.c_str(), SSL_FILETYPE_PEM) != 1) { // 加载 SSL 私钥文件到 SSL 上下文对象
+        WEBS_LOG_DEBUG(g_logger) << "SSL_CTX_use_PrivateKey_file(" << key_file << ") error";
+        return false;
+    }
+    if (SSL_CTX_check_private_key(m_ctx.get()) != 1) { // 检查 SSL 上下文对象中的私钥与证书是否匹配
+        WEBS_LOG_DEBUG(g_logger) << "SSL_CTX_check_private_key (cert_file = " << cert_file << ", key_file = " << key_file << ") error";
+        return false;
+    }
+    return true;
+}
+
+/* 初始化sock -- 重置m_ssl -- 重新将m_sock与m_ssl绑定 -- 服务器端执行SSL握手 */
+bool SSLSocket::init(int sock) {
+    bool val = Socket::init(sock);
+    if (val) {
+        m_ssl.reset(SSL_new(m_ctx.get()), SSL_free);
+        SSL_set_fd(m_ssl.get(), m_sock);
+        // 调用 SSL_accept 函数，进行 SSL/TLS 握手。这是服务器端握手操作，它会等待并处理来自客户端的握手请求。
+        val = (SSL_accept(m_ssl.get()) == 1);
+    }
+    return val;
+}
+
+std::ostream &operator<<(std::ostream &os, const Socket &sock) {
+    return sock.dump(os);
+}
+
 } // namespace webs
 
 int main() {
