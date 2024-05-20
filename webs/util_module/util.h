@@ -24,6 +24,8 @@ std::string BacktraceToString(int size = 64, int skip = 2, const std::string &pr
 uint64_t GetCurrentUS();
 
 uint64_t GetCurrentMS();
+
+std::string Time2Str(time_t ts = time(0), const std::string &format = "%Y-%m-%d %H:%M:%S");
 class FSUtil {
 public:
     static void ListAllFile(std::vector<std::string> &files, const std::string &path, const std::string &subfix);
@@ -41,6 +43,19 @@ public:
 };
 
 class StringUtil {
+public:
+    static std::string Format(const char *fmt, ...);
+    static std::string Formatv(const char *fmt, va_list ap);
+
+    static std::string UrlEncode(const std::string &str, bool space_as_plus = true);
+    static std::string UrlDecode(const std::string &str, bool space_as_plus = true);
+
+    static std::string Trim(const std::string &str, const std::string &delimit = "\t\r\n");
+    static std::string TrimLeft(const std::string &str, const std::string &delimit = "\t\r\n");
+    static std::string TrimRight(const std::string &str, const std::string &delimit = "\t\r\n");
+
+    static std::string WStringToString(const std::wstring &ws);
+    static std::string StringToString(const std::string &s);
 };
 
 /**

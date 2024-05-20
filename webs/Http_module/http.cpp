@@ -14,10 +14,11 @@ HttpMethod StringToHttpMethod(const std::string &m) {
     return HttpMethod::INVALID_METHOD;
 }
 
+/* 使用strncmp的原因是： 在传入参数时，使用的时const char* 指向操作的起始位置，只能比较n个字符是否相同 */
 HttpMethod CharsToHttpMethod(const char *m) {
-#define XX(num, name, string)      \
-    if (strcmp(#string, m) == 0) { \
-        return HttpMethod::name;   \
+#define XX(num, name, string)                        \
+    if (strncmp(#string, m, strlen(#string)) == 0) { \
+        return HttpMethod::name;                     \
     }
     HTTP_METHOD_MAP(XX);
 #undef XX
@@ -52,7 +53,7 @@ const char *HttpStatusToString(const HttpStatus &s) {
     }
 }
 
-bool CaseInsensitiveLess::operator()(const std::string &lhs, const std::string &rhs) {
+bool CaseInsensitiveLess::operator()(const std::string &lhs, const std::string &rhs) const {
     // strcasecmp 比较两个字符串的字符，忽略大小写;lhs < rhs，则返回负数
     return strcasecmp(lhs.c_str(), rhs.c_str()) < 0;
 }

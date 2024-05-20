@@ -5,7 +5,7 @@
 
 #include "address.h"
 #include "../log_module/log.h"
-#include "endian.h"
+#include "../util_module/endian.h"
 
 namespace webs {
 static webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");

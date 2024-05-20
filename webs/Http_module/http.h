@@ -184,7 +184,7 @@ const char *HttpStatusToString(const HttpStatus &s);
  * 
  */
 struct CaseInsensitiveLess {
-    bool operator()(const std::string &lhs, const std::string &rhs);
+    bool operator()(const std::string &lhs, const std::string &rhs) const;
 };
 
 /**
@@ -431,7 +431,7 @@ public:
      * 
      * @param fragment 
      */
-    void setFragment(std::string &fragment) {
+    void setFragment(const std::string &fragment) {
         m_fragment = fragment;
     }
 
@@ -817,7 +817,7 @@ public:
      */
     template <class T>
     T getHeaderAs(const std::string &key, const T &def = T()) {
-        return getAs(key, def);
+        return getAs(m_headers, key, def);
     }
 
     std::ostream &dump(std::ostream &os) const;
@@ -858,6 +858,6 @@ std::ostream &operator<<(std::ostream &os, const HttpRequest &httpRequest);
 
 #endif
 
-int main() {
-    return 0;
-}
+// int main() {
+//     return 0;
+// }
