@@ -12,7 +12,7 @@
 #include <openssl/ssl.h>
 
 namespace webs {
-class Socket : public std::enable_shared_from_this<Socket>, public Noncopyable {
+class Socket : public std::enable_shared_from_this<Socket>, Noncopyable {
 public:
     typedef std::shared_ptr<Socket> ptr;
     typedef std::weak_ptr<Socket> weak_ptr;
@@ -159,7 +159,7 @@ public:
      * @brief 向当前的socket发送数据 -- 用于TCP
      * 
      * @param buf 带发送数据的内存 ---> 适用于IO内存块
-     * @param length 带发送数据的大小
+     * @param length 带发送数据的大小   Number of elements in the vector.
      * @param flags 标志
      * @return int 
      */
@@ -180,7 +180,7 @@ public:
      * @brief 向当前的socket发送数据 --- 用于UDP
      * 
      * @param buf 带发送数据的内存 ---> 适用于IO内存块
-     * @param length 带发送数据的大小
+     * @param length 带发送数据的大小  Number of elements in the vector.
      * @param to 接收端地址 --- 必须得指定数据的接收端，即数据目的地
      * @param flags 标志
      * @return int 
@@ -204,7 +204,7 @@ public:
      * @brief 接收数据
      * 
      * @param buf 接收数据的内存位置 ---> 适用于缓冲区是IO内存块
-     * @param length 内存的大小
+     * @param length 内存的大小  Number of elements in the vector.
      * @param flags 接收数据时的行为：如非堵塞（MSG_DONTWAIT）、接收紧急数据..
      * @return int 
      */
@@ -225,7 +225,7 @@ public:
      * @brief 从当前的socket读取数据 -- 用于UDP
      * 
      * @param buf 接收数据的内存 ---> 适用于缓冲区是IO内存块
-     * @param length 内存的大小
+     * @param length 内存的大小  Number of elements in the vector.
      * @param from 用来获取发送端地址 --- 数据来源
      * @param flags 
      * @return int 

@@ -636,6 +636,10 @@ public:
 
     std::string toString() const;
 
+    /**
+     * @brief 初始化m_close；如果请求头中 connection 键的值为keep-alive，那么m_close为true
+     * 
+     */
     void init();
     void initParam();
     void initQueryParam();

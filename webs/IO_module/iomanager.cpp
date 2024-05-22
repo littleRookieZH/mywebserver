@@ -269,7 +269,7 @@ bool IOManager::cancelEvent(int fd, Event event) {
     return true;
 }
 
-/* 取消所有事件 */
+/* 取消所有事件 -- 触发所有事件 */
 bool IOManager::cancelAll(int fd) {
     RWMutexType::ReadLock lock(m_mutex);
     if ((int)m_fdContexts.size() <= fd) {

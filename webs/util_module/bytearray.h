@@ -439,7 +439,7 @@ public:
      * @param position 指定位置
      * @return uint64_t 
      */
-    uint64_t getReadBuffer(std::vector<iovec> &buffers, uint64_t position, uint64_t len = ~0ull) const;
+    uint64_t getReadBuffer(std::vector<iovec> &buffers, uint64_t len, uint64_t position) const;
 
     /**
      * @brief 获取可写入的缓存，使用iovec格式保存
