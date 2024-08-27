@@ -1,4 +1,5 @@
 #include "../../webs/webs.h"
+#include "../../webs/http_module/http.h"
 
 static webs::Logger::ptr g_logger = WEBS_LOG_ROOT();
 
