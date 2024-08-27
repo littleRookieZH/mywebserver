@@ -123,7 +123,7 @@ void ByteArray::writeUint32(uint32_t value) {
     uint8_t i = 0;
     while (value >= 0x80) {               // 如果数值比 0111 1111 大，说明还需要更多的字节来保存结果
         arr[i++] = (value & 0x7F) | 0x80; // & 0111 1111 计算有效数据的大小，| 1000 0000 指示还有数据
-        value >> 7;
+        value >>= 7;
     }
     arr[i++] = value; // 最后一次需要单独加入
     write(arr, i);
@@ -138,7 +138,7 @@ void ByteArray::writeUint64(uint64_t value) {
     uint8_t i = 0;
     while (value >= 0x80) {               // 如果数值比 0111 1111 大，说明还需要更多的字节来保存结果
         arr[i++] = (value & 0x7F) | 0x80; // & 0111 1111 计算有效数据的大小，| 1000 0000 指示还有数据
-        value >> 7;
+        value >>= 7;
     }
     arr[i++] = value; // 最后一次需要单独加入
     write(arr, i);
@@ -348,7 +348,7 @@ void ByteArray::write(const void *buf, size_t size) {
             bpos += size;
             size = 0;
         } else { // 容量不足
-            memcpy(m_cur + npos, (const char *)buf + bpos, ncap);
+            memcpy(m_cur->ptr + npos, (const char *)buf + bpos, ncap);
             m_position += ncap;
             bpos += ncap;
             size -= ncap;
@@ -511,6 +511,7 @@ bool ByteArray::readFromFile(const std::string &name) {
         ifs.read(buffer.get(), m_baseSize);
         write(buffer.get(), ifs.gcount());
     }
+    return true;
 }
 
 std::string ByteArray::toString() const {
@@ -570,7 +571,7 @@ uint64_t ByteArray::getReadBuffer(std::vector<iovec> &buffers, uint64_t len) con
 }
 
 /* 确定len的真实长度 -- 创建 iovec -- 修改iovec成员变量 */
-uint64_t ByteArray::getReadBuffer(std::vector<iovec> &buffers, uint64_t position, uint64_t len) const {
+uint64_t ByteArray::getReadBuffer(std::vector<iovec> &buffers, uint64_t len, uint64_t position) const {
     len = len > (m_size - position) ? len : (m_size - position);
     if (len == 0) {
         return 0;

@@ -5,6 +5,9 @@
 #include <string>
 #include <iostream>
 #include <cxxabi.h>
+#include <json/json.h>
+#include <yaml-cpp/yaml.h>
+
 
 /* 常用的工具类 */
 namespace webs {
@@ -42,6 +45,18 @@ public:
     static bool OpenForWrite(std::ofstream &ofs, const std::string &filename, std::ios_base::openmode mode);
 };
 
+
+class TypeUtil {
+public:
+    static int8_t ToChar(const std::string& str);
+    static int64_t Atoi(const std::string& str);
+    static double Atof(const std::string& str);
+    static int8_t ToChar(const char* str);
+    static int64_t Atoi(const char* str);
+    static double Atof(const char* str);
+};
+
+
 class StringUtil {
 public:
     static std::string Format(const char *fmt, ...);
@@ -57,6 +72,9 @@ public:
     static std::string WStringToString(const std::wstring &ws);
     static std::string StringToString(const std::string &s);
 };
+
+bool YamlToJson(const YAML::Node& ynode, Json::Value& jnode);
+bool JsonToYaml(const Json::Value& jnode, YAML::Node& ynode);
 
 /**
      * 用于输出T的类型名称

@@ -3,7 +3,7 @@
 #include "../coroutine_module/fd_manager.h"
 #include "../util_module/macro.h"
 #include "../coroutine_module/hook.h"
-#include "../IO_module/iomanager.h"
+#include "../io_module/iomanager.h"
 
 #include <netinet/tcp.h>
 #include <openssl/err.h>
@@ -16,7 +16,7 @@ Socket::Socket(int family, int type, int protocol) :
     m_sock(-1),
     m_family(family),
     m_type(type),
-    m_protocol(m_protocol),
+    m_protocol(protocol),
     m_isConnected(false) {
 }
 
@@ -284,8 +284,8 @@ void Socket::initSock() {
 
 /* 创建socket，成功则设置sockopt，失败输出日志 */
 void Socket::newSock() {
-    int sockfd = ::socket(m_family, m_type, m_protocol);
-    if (sockfd != -1) {
+    m_sock = socket(m_family, m_type, m_protocol);
+    if (m_sock != -1) {
         initSock();
     } else {
         WEBS_LOG_DEBUG(g_logger) << "socket(" << m_family << ", "
@@ -704,7 +704,3 @@ std::ostream &operator<<(std::ostream &os, const Socket &sock) {
 }
 
 } // namespace webs
-
-int main() {
-    return 0;
-}

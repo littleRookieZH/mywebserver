@@ -2,7 +2,7 @@
 #include "fd_manager.h"
 #include "../log_module/log.h"
 #include "../config_module/config.h"
-#include "../IO_module/iomanager.h"
+#include "../io_module/iomanager.h"
 #include "../util_module/macro.h"
 
 #include <dlfcn.h>

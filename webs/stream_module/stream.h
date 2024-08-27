@@ -20,7 +20,7 @@ namespace webs {
 class Stream {
 public:
     typedef std::shared_ptr<Stream> ptr;
-    virtual ~Stream();
+    virtual ~Stream(){};
 
     virtual int read(void *buf, size_t length) = 0;
 

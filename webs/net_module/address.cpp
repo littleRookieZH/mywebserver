@@ -13,7 +13,7 @@ static webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");
 /* 计算掩码 */
 template <typename T>
 static T CreateMask(uint32_t bits) { // 前bits位全是0，后面的位全是1
-    return 1 << (sizeof(T) * 8 - bits) - 1;
+    return (1 << (sizeof(T) * 8 - bits)) - 1;
 }
 
 /* 计算掩码的位数：先获取掩码 --> 再使用该方法 */
@@ -52,13 +52,14 @@ std::shared_ptr<IPAddress> Address::LookupAnyIPAddress(const std::string &host, 
 
 /* 获取host地址的所有Address */
 /**
- * 假定解析的格式为：
- * [ ipv6 ]:端口号
- * ip6 : 端口号
- * 如果都不是假定输入的是：ip地址
- * 
- * 设置想要获取的地址信息格式  -->  解析格式 --> 获取对应的地址信息  --> 如果地址信息存在，将其添加到结果中
- * */
+     * 假定解析的格式为：
+     * [ 主机名 ]:服务名/端口
+     * 主机名 : 服务名/端口
+     * 服务名可以是十进制的端口号("8080")字符串，也可以是已定义的服务名称，如"ftp"、"http"等,详细请查看/etc/services 文件，最后翻译成对应服务的端口号。
+     * 如果都不是假定输入的是：ip地址
+     *
+     * 设置想要获取的地址信息格式  -->  解析格式 --> 获取对应的地址信息  --> 如果地址信息存在，将其添加到结果中
+     * */
 bool Address::Lookup(std::vector<Address::ptr> &result, const std::string &host, int family, int type, int protocol) {
     struct addrinfo hints, *results, *next;
     hints.ai_socktype = type;
@@ -72,20 +73,22 @@ bool Address::Lookup(std::vector<Address::ptr> &result, const std::string &host,
 
     std::string node;
     const char *service = NULL;
-    if (!host.empty() && host[0] == '[') { // 格式：[ ipv6 ]:端口号
+    if (!host.empty() && host[0] == '[') { // 格式：[ 主机名 ]:服务名/端口
         const char *endipv6 = (const char *)memchr(host.c_str() + 1, ']', host.size() - 1);
-        if (*(endipv6 + 1) == ':') { // ip6的下一个字符为:  类似： [XXXX]:
-            service = endipv6 + 2;   // service指向端口号的位置
+        if (endipv6) {
+            if (*(endipv6 + 1) == ':') { // ip的下一个字符为:  类似： [XXXX]:
+                service = endipv6 + 2;   // service指向服务名/端口
+            }
+            node = host.substr(1, endipv6 - host.c_str() - 1); // 获取ip的字符串
         }
-        node = host.substr(1, endipv6 - host.c_str() - 1); // 获取ip6的字符串
     }
 
-    if (node.empty()) { // 解析格式：ip6 : 端口号
+    if (node.empty()) { // 解析格式： 主机名 : 服务名/端口
         service = (const char *)memchr(host.c_str(), ':', host.size());
         if (service) {
             if (!memchr(service + 1, ':', host.c_str() + host.size() - service - 1)) { // 没有找到下一个 : 字符
-                ++service;
                 node = host.substr(0, service - host.c_str());
+                ++service;
             }
         }
     }
@@ -93,7 +96,7 @@ bool Address::Lookup(std::vector<Address::ptr> &result, const std::string &host,
     if (node.empty()) { // 如果都不符合条件，假定输入的是 ip地址
         node = host;
     }
-
+    // 将主机和服务名转换成 IP 地址和端口号
     // getaddrinfo() 或 getnameinfo() 函数出现错误时，可以使用 gai_strerror 来获取对应的错误信息
     int error = getaddrinfo(node.c_str(), service, &hints, &results); // 成功：0；失败：非0
     if (error) {
@@ -105,7 +108,7 @@ bool Address::Lookup(std::vector<Address::ptr> &result, const std::string &host,
     // 将结果加入到result
     next = results;
     while (next) {
-        result.push_back(Create(next->ai_addr, next->ai_addrlen));
+        result.push_back(Create(next->ai_addr, (socklen_t)next->ai_addrlen));
         next = next->ai_next;
     }
     freeaddrinfo(results);
@@ -114,9 +117,9 @@ bool Address::Lookup(std::vector<Address::ptr> &result, const std::string &host,
 
 /* 返回本机所有网卡的 <网卡名， <地址，子网掩码位数>> */
 /**
- * 获取网络接口信息 -->  family是否正确 --> 网卡的协议为：ip4 -- 创建地址，获取子网掩码，掩码长度 / ip6 -- 创建地址，获取子网掩码，掩码长度 
- * 收集结果  
-*/
+     * 获取网络接口信息 -->  family是否正确 --> 网卡的协议为：ip4 -- 创建地址，获取子网掩码，掩码长度 / ip6 -- 创建地址，获取子网掩码，掩码长度
+     * 收集结果
+     */
 bool Address::GetInterfaceAddresses(std::multimap<std::string, std::pair<Address::ptr, uint32_t>> &result, int family) {
     struct ifaddrs *next, *results;
     if (getifaddrs(&results) != 0) {
@@ -165,8 +168,8 @@ bool Address::GetInterfaceAddresses(std::multimap<std::string, std::pair<Address
 
 /* 返回指定网卡名的地址和子网掩码数 */
 /* 如果 iface 为空 或者 * -->  family == AF_INET || AF_UNPEC? -- 加入ip4 ； family == AF_INET6 || AF_UNPEC? -- 加入ip6
-    获取本机所有的网卡地址 --> equal_range -- 获取指定iface的地址
-*/
+            获取本机所有的网卡地址 --> equal_range -- 获取指定iface的地址
+        */
 bool Address::GetInterfaceAddress(std::vector<std::pair<Address::ptr, uint32_t>> &result, const std::string &iface, int family) {
     if (iface.empty() || iface == "*") {
         if (family == AF_INET || family == AF_UNSPEC) {
@@ -182,7 +185,7 @@ bool Address::GetInterfaceAddress(std::vector<std::pair<Address::ptr, uint32_t>>
     }
     // 返回一个 pair 类型值；第 1 个迭代器指向的是 [first, last) 区域中第一个等于 val 的元素；第 2 个迭代器指向的是 [first, last) 区域中第一个大于 val 的元素
     auto it = results.equal_range(iface);
-    for (it.first; it.first != it.second; ++it.first) {
+    for (; it.first != it.second; ++it.first) {
         result.push_back(it.first->second);
     }
     return !result.empty();
@@ -237,14 +240,15 @@ Address::ptr Address::Create(const sockaddr *addr, socklen_t addrlen) {
         result.reset(new UnknownAddress(*addr));
         break;
     }
+    return result;
 }
 
 /**
- * 只允许输入点分十进制的字符型Ip地址
- * 输入地址和端口 --> 使用getaddrinfo获取socket地址信息 --> 调用create根据类型创建连接地址 ---> 
- * 根据socket地址信息中的协议类型选择对应的构造函数，初始化地址信息
- * 就是给 socketaddr_in / socketaddr_in6赋值
-*/
+     * 只允许输入点分十进制的字符型Ip地址
+     * 输入地址和端口 --> 使用getaddrinfo获取socket地址信息 --> 调用create根据类型创建连接地址 --->
+     * 根据socket地址信息中的协议类型选择对应的构造函数，初始化地址信息
+     * 就是给 socketaddr_in / socketaddr_in6赋值
+     */
 IPAddress::ptr IPAddress::Create(const char *address, uint16_t port) {
     if (address == nullptr) {
         return nullptr;
@@ -387,7 +391,7 @@ IPv6Address::IPv6Address(const uint8_t addr[16], uint16_t port) {
     memset(&m_addr, 0, sizeof(m_addr));
     m_addr.sin6_port = byteswapOnLittleEndian(port);
     m_addr.sin6_family = AF_INET6;
-    memcmp(&m_addr.sin6_addr.s6_addr, addr, 16);
+    memcpy(&m_addr.sin6_addr.s6_addr, addr, 16);
 }
 
 /* 通过IP6的字符串地址构造IPv6Address */
@@ -427,10 +431,10 @@ uint32_t IPv6Address::getPort() const {
 }
 
 /**
- * 可读性输出地址；
- * 输出ipv6地址，0会发生合并；比如  1231::2100
- * 1221:1212:2211:...
- */
+     * 可读性输出地址；
+     * 输出ipv6地址，0会发生合并；比如  1231::2100
+     * 1221:1212:2211:...
+     */
 std::ostream &IPv6Address::insert(std::ostream &os) const {
     bool start = false;
     uint16_t *addrs = (uint16_t *)m_addr.sin6_addr.s6_addr16;
@@ -458,14 +462,38 @@ std::ostream &IPv6Address::insert(std::ostream &os) const {
 /* 感觉代码有问题，先不写 */
 /* 获取该地址的组播地址 */
 IPAddress::ptr IPv6Address::broadcastAddress(uint32_t prefix_len) {
+    sockaddr_in6 baddr(m_addr);
+    baddr.sin6_addr.s6_addr[prefix_len / 8] |=
+        CreateMask<uint8_t>(prefix_len % 8);
+    for (int i = prefix_len / 8 + 1; i < 16; ++i) {
+        baddr.sin6_addr.s6_addr[i] = 0xff;
+    }
+    return IPv6Address::ptr(new IPv6Address(baddr));
 }
 
 /* 获取该地址的网段 -- 网络地址 */
 IPAddress::ptr IPv6Address::networkAddress(uint32_t prefix_len) {
+    sockaddr_in6 baddr(m_addr);
+    baddr.sin6_addr.s6_addr[prefix_len / 8] &=
+        CreateMask<uint8_t>(prefix_len % 8);
+    for (int i = prefix_len / 8 + 1; i < 16; ++i) {
+        baddr.sin6_addr.s6_addr[i] = 0x00;
+    }
+    return IPv6Address::ptr(new IPv6Address(baddr));
 }
 
 /* 获取该地址的子网掩码 */
 IPAddress::ptr IPv6Address::subnetMask(uint32_t prefix_len) {
+    sockaddr_in6 subnet;
+    memset(&subnet, 0, sizeof(subnet));
+    subnet.sin6_family = AF_INET6;
+    subnet.sin6_addr.s6_addr[prefix_len / 8] =
+        ~CreateMask<uint8_t>(prefix_len % 8);
+
+    for (uint32_t i = 0; i < prefix_len / 8; ++i) {
+        subnet.sin6_addr.s6_addr[i] = 0xff;
+    }
+    return IPv6Address::ptr(new IPv6Address(subnet));
 }
 
 void IPv6Address::setPort(uint16_t v) {

@@ -22,7 +22,7 @@ function(ragelmaker src_rl outputlist outputdir)
 
     get_filename_component(src_file ${src_rl} NAME_WE)
 
-    set(rl_out ${outputdir}/${src_file}.rl.cc)
+    set(rl_out ${outputdir}/${src_file}.rl.cpp)
 
     #adding to the list inside a function takes special care, we cannot use list(APPEND...)
     #because the results are local scope only

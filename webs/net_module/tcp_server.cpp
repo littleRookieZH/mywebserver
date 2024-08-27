@@ -9,7 +9,7 @@ static webs::Logger::ptr g_logger = WEBS_LOG_NAME("system");
 static webs::ConfigVar<uint64_t>::ptr g_tcp_server_read_timeout = webs::Config::Lookup("tcp_server.read_timeout", (uint64_t)(60 * 1000 * 2), "tcp server read timeout");
 
 TcpServer::TcpServer(webs::IOManager *worker, webs::IOManager *io_worker, webs::IOManager *accept_worker) :
-    m_worker(m_worker),
+    m_worker(worker),
     m_ioWorker(io_worker),
     m_acceptWorker(accept_worker),
     m_recvTimeout(g_tcp_server_read_timeout->getValue()),
@@ -47,17 +47,20 @@ bool TcpServer::bind(const std::vector<webs::Address::ptr> &addrs, std::vector<w
             fails.push_back(addr);
             continue;
         }
-        if (!fails.empty()) {
-            m_socks.clear();
-            return false;
-        }
-        for (auto &i : m_socks) {
-            WEBS_LOG_INFO(g_logger) << "type = " << m_type
-                                    << ", name =" << m_name << ", ssl = " << m_ssl
-                                    << ", server bind success: " << *i;
-        }
-        return true;
+        m_socks.push_back(sock);
     }
+
+    if (!fails.empty()) { // 如果失败，清除已经连接的socketfd
+        m_socks.clear();
+        return false;
+    }
+
+    for (auto &i : m_socks) {
+        WEBS_LOG_INFO(g_logger) << "type = " << m_type
+                                << ", name =" << m_name << ", ssl = " << m_ssl
+                                << ", server bind success: " << *i;
+    }
+    return true;
 }
 /* 启动TcpServer是指：将监听socket开始等待接受新连接这项工作加入到协程调度器中 */
 bool TcpServer::start() {

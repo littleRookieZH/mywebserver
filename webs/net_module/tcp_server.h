@@ -8,7 +8,7 @@
 #include "../config_module/config.h"
 #include "socket.h"
 #include "address.h"
-#include "../IO_module/iomanager.h"
+#include "../io_module/iomanager.h"
 
 namespace webs {
 struct TcpServerConf {
@@ -118,7 +118,7 @@ public:
      * @return true 
      * @return false 
      */
-    bool bind(webs::Address::ptr address, bool ssl = false);
+    virtual bool bind(webs::Address::ptr address, bool ssl = false);
 
     /**
      * @brief 创建socketfd，并绑定地址(服务器的ip和端口)
@@ -129,7 +129,7 @@ public:
      * @return true 
      * @return false 
      */
-    bool bind(const std::vector<webs::Address::ptr> &addr, std::vector<webs::Address::ptr> &fails, bool ssl = false);
+    virtual bool bind(const std::vector<webs::Address::ptr> &addr, std::vector<webs::Address::ptr> &fails, bool ssl = false);
 
     /**
      * @brief 启动服务
@@ -180,7 +180,7 @@ public:
      * 
      * @param name 
      */
-    void setName(const std::string &name) {
+    virtual void setName(const std::string &name) {
         m_name = name;
     }
 
@@ -221,11 +221,10 @@ public:
 protected:
     /**
      * @brief 处理新连接的Socket类；每次 accept 就调用这个函数
-     * 
+     * 该函数需要每一个派生类重写
      * @param client 
      */
-    virtual void
-    handleClient(Socket::ptr client);
+    virtual void handleClient(Socket::ptr client);
 
     /**
      * @brief 开始接受连接
@@ -234,7 +233,7 @@ protected:
      */
     virtual void startAccept(Socket::ptr sock);
 
-private:
+protected:
     // 监听Socket数组；可以监听多地址
     std::vector<Socket::ptr> m_socks;
     // 新连接的Socket工作的调度器；
@@ -246,7 +245,7 @@ private:
     uint64_t m_recvTimeout;
     // 服务器的名称；可以是TCP UDP
     std::string m_name;
-    // 服务器的类型
+    // 服务器的类型  -- 可能需要派生类重新赋值
     std::string m_type = "tcp";
     // 服务器是否停止
     bool m_isStop;

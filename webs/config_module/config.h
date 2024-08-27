@@ -27,12 +27,12 @@ public:
     }
 
     /* 返回配置参数的名称 */
-    const std::string &getname() const {
+    const std::string &getName() const {
         return m_name;
     }
 
     /* 返回配置参数的描述*/
-    const std::string &getdescription() const {
+    const std::string &getDescription() const {
         return m_description;
     }
 

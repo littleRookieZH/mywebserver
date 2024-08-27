@@ -36,15 +36,16 @@ bool FdCtx::init() {
         m_socket = false;
     } else {
         m_isInit = true;
-        m_socket = S_ISSOCK(m_fd);
+        m_socket = S_ISSOCK(st.st_mode); // 用于检查给定的文件类型是否为套接字
     }
 
     // 默认socket使用hook
     if (m_socket) {
         int flags = fcntl_f(m_fd, F_GETFL, 0);
         if (!(flags & O_NONBLOCK)) {
-            m_sysNonblock = true;
+            fcntl_f(m_fd, F_SETFL, flags | O_NONBLOCK); // 是socket则设置为非堵塞
         }
+        m_sysNonblock = true;
     } else {
         m_sysNonblock = false;
     }
@@ -53,6 +54,7 @@ bool FdCtx::init() {
     m_isClosed = false;
     return m_isInit;
 }
+
 void FdCtx::setTimeout(int type, uint64_t v) {
     if (type == SO_RCVTIMEO) {
         m_recvTimeout = v;
